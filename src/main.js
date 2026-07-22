@@ -1,0 +1,122 @@
+// 메인 — 상태 · 라우터 · 상호작용 · 시트
+import { logo, cat, wishIcon } from './assets.js';
+import { WISHES, wishLb } from './data.js';
+import { DB, ADMIN_URL, ADMIN_CODE } from './store.js';
+import { today, esc, toast } from './util.js';
+import * as E from './engine.js';
+import { topbar, tabbar, viewOnboarding, viewHome, viewMissions, viewCollection, viewReport, viewMe } from './screens.js';
+
+var S={tab:"home",prevTab:"home",todayEntry:null,sheet:null};
+var _logoTaps=0,_logoTimer=null;
+function ready(){var s=DB.settings();return s.onboarded&&s.wishes&&s.wishes.length;}
+function el(){return document.getElementById('root');}
+function nav(t){if(t!==S.tab)S.prevTab=S.tab;S.tab=t;render();window.scrollTo(0,0);}
+
+function render(){
+  if(!ready()){el().innerHTML='<div class="app"><div class="scr">'+viewOnboarding()+'</div></div>';bindOnboarding();return;}
+  var body=S.tab==="home"?viewHome(S):S.tab==="missions"?viewMissions(S):S.tab==="collection"?viewCollection(S):S.tab==="report"?viewReport(S):viewMe(S);
+  el().innerHTML='<div class="app"><div class="scr">'+body+'</div></div>'+tabbar(S.tab);
+  bind();
+  if((S.tab==="home"||S.tab==="missions")&&!S.todayEntry)loadToday();
+  if(S.sheet)renderSheet();
+}
+function loadToday(){E.ensureToday(function(entry){S.todayEntry=entry;render();});}
+
+/* ── 온보딩 바인딩 ── */
+function saveStep1(){var b=document.getElementById('p-birth');if(!b)return;var birth=b.value;var nick=document.getElementById('p-nick');DB.patchProfile({nickname:(nick?nick.value.trim():DB.profile().nickname),birth:birth,job:(document.getElementById('p-job').value||'').trim(),place:(document.getElementById('p-place').value||'').trim(),ohaeng:E.ohaengOf(birth)});}
+function bindOnboarding(){
+  document.querySelectorAll('[data-wish]').forEach(function(b){b.onclick=function(){var s=DB.settings();var w=(s.wishes||[]).slice();var id=b.getAttribute('data-wish');var i=w.indexOf(id);if(i>=0)w.splice(i,1);else w.push(id);DB.patchSettings({wishes:w});render();};});
+  document.querySelectorAll('[data-mbti]').forEach(function(b){b.onclick=function(){saveStep1();var idx=parseInt(b.getAttribute('data-mbti'),10);var val=b.getAttribute('data-val');var mb=(DB.profile().mbti||"____").split('');mb[idx]=(mb[idx]===val?"_":val);DB.patchProfile({mbti:mb.join('')});render();};});
+  var ag=document.getElementById('p-agree');if(ag)ag.onchange=function(){saveStep1();DB.patchSettings({agree:ag.checked});render();};
+  document.querySelectorAll('[data-step]').forEach(function(b){b.onclick=function(){var to=b.getAttribute('data-step');var s=DB.settings();
+    if(to==="1"){DB.patchSettings({_step:1});}
+    else if(to==="2"){if(!s.agree){toast("기기 저장에 동의해 주세요");return;}saveStep1();DB.patchSettings({_step:2});}
+    else if(to==="3"){DB.patchSettings({_step:3});}
+    else if(to==="done"){if(!(s.wishes&&s.wishes.length)){toast("소망을 하나 이상 골라주세요");return;}E.seedId();DB.patchSettings({onboarded:true,_step:undefined});S.todayEntry=null;S.tab="home";render();return;}
+    render();};});
+  document.querySelectorAll('[data-back-to]').forEach(function(b){b.onclick=function(){if(document.getElementById('p-birth'))saveStep1();DB.patchSettings({_step:parseInt(b.getAttribute('data-back-to'),10)});render();};});
+  var sk=document.querySelector('[data-skip]');if(sk)sk.onclick=function(){DB.patchSettings({wishes:["happy","luck"],agree:true,onboarded:true,_step:undefined});E.seedId();S.todayEntry=null;S.tab="home";render();};
+}
+
+/* ── 앱 바인딩 ── */
+function bind(){
+  document.querySelectorAll('[data-nav]').forEach(function(b){b.onclick=function(){nav(b.getAttribute('data-nav'));};});
+  document.querySelectorAll('[data-complete]').forEach(function(b){b.onclick=function(){openSheet({type:'complete',i:parseInt(b.getAttribute('data-complete'),10),date:today(),felt:null,again:null});};});
+  document.querySelectorAll('[data-swap]').forEach(function(b){b.onclick=function(){var e=E.swapMission(parseInt(b.getAttribute('data-swap'),10));if(e===false){toast("오늘은 더 바꿀 미션이 없어요");return;}if(e){S.todayEntry=e;render();toast("다른 미션으로 바꿨어요");}};});
+  document.querySelectorAll('[data-undo]').forEach(function(b){b.onclick=function(){E.unmarkDone(today(),parseInt(b.getAttribute('data-undo'),10));render();toast("완료를 취소했어요");};});
+  document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=function(){var r=DB.reflections();r['__close_'+today()]=b.getAttribute('data-close');DB.setReflections(r);render();toast("하루를 닫았어요");};});
+  var ed=document.querySelector('[data-edit]');if(ed)ed.onclick=function(){openSheet({type:'edit'});};
+  var po=document.querySelector('[data-policy]');if(po)po.onclick=function(){openSheet({type:'policy'});};
+  var rs=document.querySelector('[data-reset]');if(rs)rs.onclick=function(){openSheet({type:'reset'});};
+  var ag=document.querySelector('[data-admin]');if(ag)ag.onclick=openAdminGate;
+  var bl=document.getElementById('brandLogo');if(bl)bl.onclick=function(){_logoTaps++;clearTimeout(_logoTimer);_logoTimer=setTimeout(function(){_logoTaps=0;},1600);if(_logoTaps>=5){_logoTaps=0;openAdminGate();}};
+}
+function openAdminGate(){var c=prompt("관리자 접근 코드를 입력하세요");if(c===null)return;if(c.trim()===ADMIN_CODE)openSheet({type:'admin'});else toast("접근 권한이 없어요");}
+
+/* ── 시트 ── */
+function openSheet(cfg){S.sheet=cfg;renderSheet();}
+function closeSheet(){S.sheet=null;var w=document.getElementById('sheetWrap');if(w)w.remove();}
+function finishComplete(){var st=S.sheet;var date=st.date;closeSheet();
+  var entry=S.todayEntry;var all=entry&&entry.items.every(function(m,i){return E.isDone(date,i);});
+  render();
+  if(all){var s=DB.settings();if(s.lastAllDone!==date){DB.patchSettings({lastAllDone:date});openSheet({type:'allDone'});}}
+  else toast("완료로 기록했어요");
+}
+function renderSheet(){
+  var old=document.getElementById('sheetWrap');if(old)old.remove();if(!S.sheet)return;var mid=false,html='';
+  if(S.sheet.type==='complete'){var st=S.sheet;var felt=[["good","좋았어요"],["ok","보통이에요"],["hard","어려웠어요"]];var again=[["yes","네"],["other","다른 걸 해볼래요"]];
+    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">이 행동을 마쳤어요</span></div><p class="faint small">회고는 선택이에요. 건너뛰어도 완료로 기록돼요.</p>'+
+      '<div class="qgroup"><p class="q">해보니 어땠나요?</p><div class="opts">'+felt.map(function(o){return '<button class="opt'+(st.felt===o[0]?' on':'')+'" data-felt="'+o[0]+'">'+o[1]+'</button>';}).join('')+'</div></div>'+
+      '<div class="qgroup"><p class="q">내일도 이와 비슷한 행동을 해볼까요?</p><div class="opts">'+again.map(function(o){return '<button class="opt'+(st.again===o[0]?' on':'')+'" data-again="'+o[0]+'">'+o[1]+'</button>';}).join('')+'</div></div>'+
+      '<button class="cta gold" style="margin-top:16px" data-c-save>완료로 기록하기</button><button class="ghost" style="margin-top:10px" data-c-skip>회고 건너뛰고 완료</button>';
+  } else if(S.sheet.type==='allDone'){mid=true;
+    html='<div style="display:flex;justify-content:center;margin-bottom:6px">'+cat(96,'cheer')+'</div><h1 class="disp" style="font-size:21px">오늘의 미션을<br>모두 마쳤어요</h1><p class="muted small" style="margin-top:8px">작은 약속을 지킨 하루예요. 내일도 한 걸음, 함께해요.</p><button class="cta gold" style="margin-top:18px" data-close>좋아요</button>';
+  } else if(S.sheet.type==='policy'){
+    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">개인정보 처리방침</span><button class="link" data-close aria-label="닫기">닫기</button></div><div class="doc">'+
+      '<h4>무엇을 저장하나요</h4><p>선택한 소망과 생년월일·직업·장소·성향(입력한 경우), 완료·회고 기록을 저장해요. 이름·연락처는 수집하지 않아요.</p>'+
+      '<h4>어디에 저장되나요</h4><p>기록은 이 브라우저(localStorage)에만 저장돼요. 미션 생성을 위해 개인화 정보가 ENSEN의 서버 함수(Supabase)와 AI 제공자에 일시 전송될 수 있으나 별도로 보관하지 않아요.</p>'+
+      '<h4>어떻게 쓰이나요</h4><p>선택한 소망·오행·성향을 바탕으로 오늘의 맞춤 행동을 만드는 데에만 써요.</p>'+
+      '<h4>어떻게 삭제하나요</h4><p>내 정보의 “데이터 초기화”로 이 기기의 모든 기록을 즉시 지울 수 있어요.</p></div><button class="ghost" style="margin-top:16px" data-close>닫기</button>';
+  } else if(S.sheet.type==='reset'){
+    var rn=(function(){var r=DB.reflections(),n=0;for(var k in r)if(k.indexOf('__')!==0)n+=Object.keys(r[k]).length;return n;})();
+    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">데이터를 초기화할까요?</span></div><p class="doc">아래 기록이 <b>모두 삭제</b>되고 복구할 수 없어요.</p>'+
+      '<div class="card" style="padding:2px 16px;margin-top:10px"><div class="row"><span class="k">소망·개인화 정보</span><span class="v">전체</span></div><div class="row"><span class="k">완료 기록</span><span class="v">'+E.completedCountAll()+'건</span></div><div class="row"><span class="k">회고 기록</span><span class="v">'+rn+'건</span></div></div>'+
+      '<button class="cta" style="margin-top:16px;background:var(--coral)" data-reset-confirm>모두 삭제</button><button class="ghost" style="margin-top:10px" data-close>취소</button>';
+  } else if(S.sheet.type==='edit'){var s=DB.settings();var p=DB.profile();var w=s.wishes||[];var mb=p.mbti||"____";var pairs=[["E","I",0],["S","N",1],["T","F",2],["J","P",3]];
+    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">소망 · 개인화</span><button class="link" data-close aria-label="닫기">닫기</button></div>'+
+      '<div class="field" style="margin-top:6px"><span>닉네임</span><input id="e-nick" type="text" placeholder="예: 구름" value="'+esc(p.nickname||'')+'"></div><div class="field"><span>소망 (복수)</span><div class="wgrid">'+WISHES.map(function(x){var on=w.indexOf(x.id)>=0;return '<button class="wq'+(on?' on':'')+'" data-ewish="'+x.id+'"><span class="chk"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span><span class="ic" style="color:'+x.c+'">'+wishIcon(x.id,x.c)+'</span><span class="lb">'+x.lb+'</span></button>';}).join('')+'</div></div>'+
+      '<div class="field"><span>생년월일</span><input id="e-birth" type="date" max="'+today()+'" value="'+(p.birth||'')+'"></div>'+
+      '<div class="field"><span>직업</span><input id="e-job" type="text" value="'+esc(p.job||'')+'"></div>'+
+      '<div class="field"><span>장소</span><input id="e-place" type="text" value="'+esc(p.place||'')+'"></div>'+
+      '<div class="field"><span>성향(MBTI)</span><div class="mbti">'+pairs.map(function(pr){var cur=mb[pr[2]];return '<button data-embti="'+pr[2]+'" data-val="'+pr[0]+'" class="'+(cur===pr[0]?'on':'')+'">'+pr[0]+'</button><button data-embti="'+pr[2]+'" data-val="'+pr[1]+'" class="'+(cur===pr[1]?'on':'')+'">'+pr[1]+'</button>';}).join('')+'</div></div>'+
+      '<p class="why-note">소망을 바꾸면 오늘의 미션이 새로 만들어져요.</p><button class="cta gold" style="margin-top:12px" data-edit-save>저장</button>';
+  } else if(S.sheet.type==='admin'){
+    var comp=E.completedCountAll();var stk=E.streak();var lv=E.level();var sym=E.symbolsUnlocked();
+    var r=DB.reflections();var refl=0;for(var k in r)if(k.indexOf('__')!==0)refl+=Object.keys(r[k]).length;
+    var closes=Object.keys(DB.completions()).length;
+    var cells=[["완료 행동",comp],["연속(일)",stk],["기록한 날",closes],["회고",refl],["레벨",lv],["상징",sym]];
+    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">관리자 · 로컬 진단</span><button class="link" data-close aria-label="닫기">닫기</button></div>'+
+      '<div class="adm-metrics">'+cells.map(function(x){return '<div class="cell"><b>'+x[1]+'</b><small>'+x[0]+'</small></div>';}).join('')+'</div>'+
+      '<button class="cta gold" style="margin-top:14px" data-adm-open>정식 관리자 콘솔 열기</button><button class="ghost" style="margin-top:10px" data-close>닫기</button>'+
+      '<p class="why-note" style="margin-top:12px">이 화면은 이 기기의 로컬 요약이에요. 실제 관리자 권한·전체 회원 지표는 정식 콘솔(ensen_admin.html · 서버 인증)에서 관리합니다.</p>';
+  }
+  var wrap=document.createElement('div');
+  wrap.innerHTML='<div class="sheet-wrap'+(mid?' mid':'')+'" id="sheetWrap"><div class="sheet'+(mid?' pop':'')+'" role="dialog" aria-modal="true">'+html+'</div></div>';
+  document.body.appendChild(wrap.firstChild);
+  document.getElementById('sheetWrap').onclick=function(e){if(e.target.id==='sheetWrap'&&S.sheet.type!=='allDone')closeSheet();};
+  bindSheet();
+}
+function bindSheet(){
+  document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=closeSheet;});
+  document.querySelectorAll('[data-felt]').forEach(function(b){b.onclick=function(){S.sheet.felt=b.getAttribute('data-felt');renderSheet();};});
+  document.querySelectorAll('[data-again]').forEach(function(b){b.onclick=function(){S.sheet.again=b.getAttribute('data-again');renderSheet();};});
+  var save=document.querySelector('[data-c-save]');if(save)save.onclick=function(){var st=S.sheet;E.markDone(st.date,st.i);if(st.felt||st.again)E.saveReflection(st.date,st.i,st.felt,st.again);finishComplete();};
+  var skip=document.querySelector('[data-c-skip]');if(skip)skip.onclick=function(){var st=S.sheet;E.markDone(st.date,st.i);finishComplete();};
+  var rc=document.querySelector('[data-reset-confirm]');if(rc)rc.onclick=function(){DB.clearAll();S.sheet=null;S.todayEntry=null;S.tab="home";render();toast("모든 기록을 지웠어요");};
+  document.querySelectorAll('[data-ewish]').forEach(function(b){b.onclick=function(){var s=DB.settings();var w=(s.wishes||[]).slice();var id=b.getAttribute('data-ewish');var i=w.indexOf(id);if(i>=0){if(w.length<=1){toast("소망은 하나 이상이어야 해요");return;}w.splice(i,1);}else w.push(id);DB.patchSettings({wishes:w});renderSheet();};});
+  document.querySelectorAll('[data-embti]').forEach(function(b){b.onclick=function(){var idx=parseInt(b.getAttribute('data-embti'),10);var val=b.getAttribute('data-val');var mb=(DB.profile().mbti||"____").split('');mb[idx]=(mb[idx]===val?"_":val);DB.patchProfile({mbti:mb.join('')});renderSheet();};});
+  var es=document.querySelector('[data-edit-save]');if(es)es.onclick=function(){var birth=document.getElementById('e-birth').value;DB.patchProfile({nickname:document.getElementById('e-nick').value.trim(),birth:birth,job:document.getElementById('e-job').value.trim(),place:document.getElementById('e-place').value.trim(),ohaeng:E.ohaengOf(birth)});var mm=DB.missions();delete mm[today()];DB.setMissions(mm);S.todayEntry=null;S.sheet=null;S.tab="home";render();toast("저장했어요. 오늘의 미션을 새로 준비할게요");};
+  var ao=document.querySelector('[data-adm-open]');if(ao)ao.onclick=function(){try{var w=window.open(ADMIN_URL,'_blank');if(!w)location.href=ADMIN_URL;}catch(e){location.href=ADMIN_URL;}};
+}
+
+try{render();}catch(e){el().innerHTML='<div class="app"><div class="scr"><div class="empty">잠시 문제가 생겼어요. 새로고침해 주세요.</div></div></div>';}

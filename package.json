@@ -1,0 +1,13 @@
+{
+  "name": "ensen-lab",
+  "version": "1.0.0",
+  "description": "ENSEN LAB — 개인화 행운·행동 미션 앱 (서비스 소개 → 정보입력 → AI 분석 → 소망 → 개인화 미션)",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs && echo 'dist/index.html 생성됨 — 브라우저로 열어 확인'"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.0"
+  }
+}

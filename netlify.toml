@@ -1,0 +1,4 @@
+# ENSEN LAB — Netlify 빌드 설정 (Git 연동 시 자동 인식)
+[build]
+  command = "npm run build"
+  publish = "dist"

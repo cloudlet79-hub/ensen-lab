@@ -110,8 +110,12 @@ export function viewHome(S){
     (allDone?'<section class="calm"><p class="t">오늘의 작은 약속을 지켰어요</p><p class="s">리포트에서 나만의 패턴을 볼 수 있어요.</p></section>':viewCloseInline(date));
 }
 function viewCloseInline(date){
-  var day=DB.settings();var luck=(DB.reflections()['__close_'+date]);
-  return '<section class="calm" style="background:#fbf7ee;border-color:#efe1c6"><p class="t" style="font-family:var(--serif)">오늘, 좋은 일이 있었나요?</p><div class="opts" style="margin-top:12px"><button class="opt'+(luck==='good'?' on':'')+'" data-close="good">있었어요</button><button class="opt'+(luck==='ok'?' on':'')+'" data-close="ok">보통</button><button class="opt'+(luck==='no'?' on':'')+'" data-close="no">아쉬웠어요</button></div></section>';
+  var luck=E.getLuck(date);var v=luck?luck.v:null;
+  var noteLine=luck&&luck.note?'<p class="serif small" style="margin-top:10px;color:#5a4a2a">“'+esc(luck.note)+'”</p>':(v==='good'?'<button class="link small" style="margin-top:10px" data-luck-note>어떤 좋은 일이었는지 한 줄 남기기</button>':'');
+  return '<section class="calm" style="background:#fbf7ee;border-color:#efe1c6"><p class="t" style="font-family:var(--serif)">오늘, 좋은 일이 있었나요?</p>'+
+    '<div class="opts" style="margin-top:12px"><button class="opt'+(v==='good'?' on':'')+'" data-close="good">있었어요</button><button class="opt'+(v==='ok'?' on':'')+'" data-close="ok">보통</button><button class="opt'+(v==='no'?' on':'')+'" data-close="no">아쉬웠어요</button></div>'+
+    noteLine+
+    '<p class="faint small" style="margin-top:10px">이 기록이 쌓이면, 어떤 행동이 좋은 일로 이어지는지 보여드려요.</p></section>';
 }
 
 /* ── 미션 ── */
@@ -137,12 +141,14 @@ export function viewCard(S){
     (f.oh?'<p class="f-sub">— 오행 '+f.oh+'('+f.han+') · '+f.kw+' —</p>':'')+
     '<p class="f-sub" style="margin-top:8px;color:#8a7550">'+(p.nickname?esc(p.nickname)+' · ':'')+today()+'</p>'+
     '<p class="f-brand">ENSEN LAB</p></section>';
+  var ratio=S.cardRatio||'post';
+  var ratioUI='<div class="opts"><button class="opt'+(ratio==='post'?' on':'')+'" data-ratio="post">기본 카드 (4:5)</button><button class="opt'+(ratio==='story'?' on':'')+'" data-ratio="story">스토리용 (9:16)</button></div>';
   return topbar('<span class="pill">나의 카드</span>',S.prevTab||'home')+
     '<div><h1 class="disp">오늘의 카드</h1><p class="faint small serif">매일 나의 오행에 맞춘 행운 문구 카드가 생겨요.<br>이미지로 저장하거나 SNS에 공유해 보세요.</p></div>'+
-    card+
+    card+ratioUI+
     '<button class="cta gold" data-card-share>공유하기</button>'+
     '<button class="ghost" data-card-save>이미지로 저장</button>'+
-    '<p class="faint small center">저장·공유하면 위 카드가 이미지로 만들어져요.</p>';
+    '<p class="faint small center">저장·공유하면 선택한 비율의 이미지로 만들어져요.</p>';
 }
 
 /* ── 리포트 ── */
@@ -152,13 +158,28 @@ export function viewReport(S){
   var ohBlock=a.oh?'<div class="tip"><div class="k">나의 오행 · '+a.oh+'('+a.han+') · '+a.kw+'</div><div class="v">'+esc(a.advice)+'</div></div>':'';
   if(w.days<3){var dots='';for(var i=0;i<3;i++)dots+='<i class="'+(i<w.days?'on':'')+'"></i>';
     return head+ohBlock+'<div class="empty"><div style="margin-bottom:12px;display:flex;justify-content:center">'+cat(76,'base')+'</div><b class="serif" style="font-size:16px;color:var(--char)">3일만 기록하면<br>나만의 패턴을 보여드릴게요</b><div class="pdots">'+dots+'</div><p style="margin-top:12px">지금까지 '+w.days+'일 기록했어요.</p></div>';}
-  var topLb=w.topTag||"—";var tip;
-  if(w.pos!=null&&w.pos>=60)tip=topLb+" 행동에서 좋은 기분을 자주 느낀 것 같아요. 다음 주에도 이어가 보면 어떨까요?";
+  var topLb=w.topTag||"—";
+  /* 핵심 데이터: 행동 × 행운 상관 */
+  var cor=E.luckCorrelation();var corBlock='';
+  if(cor.cDays>=2&&cor.cRate!=null){
+    var corTxt='미션을 완료한 날 중 <b>'+cor.cRate+'%</b>에서 좋은 일이 기록됐어요.';
+    if(cor.oDays>=2&&cor.oRate!=null&&cor.cRate>cor.oRate)corTxt+=' 완료하지 않은 날('+cor.oRate+'%)보다 높아요 — 행동이 행운을 만들고 있어요.';
+    corBlock='<div class="tip" style="background:#f0f8f2;border-color:#cfe6d4"><div class="k" style="color:#2f7d5a">행동과 행운의 상관</div><div class="v">'+corTxt+'</div></div>';
+  }
+  var tip;
+  if(w.luckRate!=null&&w.luckRate>=60)tip="좋은 일이 자주 기록된 한 주였어요. "+(w.topTag?topLb+" 행동과 함께한 날이 많았네요.":"");
   else if(w.topTag)tip=topLb+" 행동을 가장 자주 실천했어요. 조금 더 가볍게 이어가 봐도 좋아요.";
   else tip="이번 주엔 여러 행동을 고르게 시도했어요. 다음 주엔 하나에 집중해 보는 것도 방법이에요.";
+  /* 행운 기록 목록 */
+  var jr=E.luckJournal(5).filter(function(x){return x.note;});
+  var jrBlock=jr.length?'<div class="sect" style="margin-top:2px"><span class="t" style="font-size:14px">나의 행운 기록</span></div>'+jr.map(function(x){return '<div class="card" style="padding:12px 16px"><p class="serif" style="font-size:13.5px;color:#5a4a2a">“'+esc(x.note)+'”</p><p class="faint small" style="margin-top:4px">'+x.date+'</p></div>';}).join(''):'';
+  /* PLUS 티저 */
+  var st=DB.settings();
+  var plusBlock='<button class="tip" style="width:100%;text-align:left;border-color:#e2d3ef;background:#f8f4fc" data-plus><div class="k" style="color:#7c5cc4">ENSEN PLUS 준비 중 🔒</div><div class="v" style="font-size:13px">오행별 행운의 날 분석 · 행동↔행운 심층 상관 · 월간 리포트'+(st.plusInterest?' — 관심 등록 완료 ✓':' — 눌러서 미리 보기')+'</div></button>';
   return head+'<div class="ins"><div class="big"><b class="mono">'+w.completed+'</b><small>최근 7일 동안 완료한 작은 행동</small></div>'+
-    '<div class="grid2"><div class="cell"><div class="k">자주 실천한 결</div><div class="v">'+esc(topLb)+'</div></div><div class="cell"><div class="k">긍정적 회고 비율</div><div class="v">'+(w.pos!=null?w.pos+'%':'기록 없음')+'</div></div></div>'+
-    ohBlock+'<div class="tip"><div class="k">이런 경향이 보여요</div><div class="v">'+esc(tip)+'</div></div><p class="faint small center">단정이 아니라, 지금까지의 기록에서 보이는 흐름이에요.</p></div>';
+    '<div class="grid2"><div class="cell"><div class="k">자주 실천한 결</div><div class="v">'+esc(topLb)+'</div></div><div class="cell"><div class="k">좋은 일 기록률</div><div class="v">'+(w.luckRate!=null?w.luckRate+'%':'기록 없음')+'</div></div></div>'+
+    corBlock+ohBlock+'<div class="tip"><div class="k">이런 경향이 보여요</div><div class="v">'+esc(tip)+'</div></div>'+jrBlock+plusBlock+
+    '<p class="faint small center">단정이 아니라, 지금까지의 기록에서 보이는 흐름이에요.</p></div>';
 }
 
 /* ── 나 ── */
@@ -167,6 +188,7 @@ export function viewMe(S){
   var wtags=(s.wishes||[]).map(function(id){return '<span class="tg">'+wishLb(id)+'</span>';}).join('')||'—';
   return topbar('',S.prevTab||'home')+
     '<div class="me-id"><span style="width:54px;height:54px;border-radius:16px;background:#fbf6ee;border:1px solid var(--line);display:grid;place-items:center">'+glyph("clover","#C7A14A",4.5)+'</span><div><p class="me-name">'+esc(p.nickname||"나")+'</p><p class="faint small">Lv.'+E.level()+(oh?' · 오행 '+oh:'')+'</p></div></div>'+
+    '<button class="tip" style="width:100%;text-align:left;border:1px solid #e2d3ef;background:#f8f4fc;border-radius:16px;padding:14px 16px" data-plus><div class="k" style="font-size:11px;font-weight:800;color:#7c5cc4">ENSEN PLUS · 준비 중</div><div class="v" style="font-family:var(--serif);font-size:14px;margin-top:5px;line-height:1.6">더 깊은 나의 리포트, 먼저 만나보세요'+(DB.settings().plusInterest?' — 관심 등록 완료 ✓':'')+'</div></button>'+
     '<div class="device"><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M11 18h2"/></svg>이 기기에만 저장 중</div>'+
     '<p class="why-note">지금은 계정 로그인·기기 간 동기화가 없어요. 기록은 이 브라우저에만 저장돼요. 초기화하면 복구할 수 없어요.</p>'+
     '<div class="card" style="padding:2px 16px">'+

@@ -42,10 +42,11 @@ function bindOnboarding(){
 /* ── 앱 바인딩 ── */
 function bind(){
   document.querySelectorAll('[data-nav]').forEach(function(b){b.onclick=function(){nav(b.getAttribute('data-nav'));};});
-  document.querySelectorAll('[data-complete]').forEach(function(b){b.onclick=function(){openSheet({type:'complete',i:parseInt(b.getAttribute('data-complete'),10),date:today(),felt:null,again:null});};});
+  document.querySelectorAll('[data-complete]').forEach(function(b){b.onclick=function(){var i=parseInt(b.getAttribute('data-complete'),10);E.markDone(today(),i);track('mission_complete');finishComplete(today());};});
   document.querySelectorAll('[data-swap]').forEach(function(b){b.onclick=function(){var e=E.swapMission(parseInt(b.getAttribute('data-swap'),10));if(e===false){toast("오늘은 더 바꿀 미션이 없어요");return;}if(e){track('mission_swap');S.todayEntry=e;render();toast("다른 미션으로 바꿨어요");}};});
   document.querySelectorAll('[data-undo]').forEach(function(b){b.onclick=function(){E.unmarkDone(today(),parseInt(b.getAttribute('data-undo'),10));render();toast("완료를 취소했어요");};});
-  document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=function(){var r=DB.reflections();r['__close_'+today()]=b.getAttribute('data-close');DB.setReflections(r);track('day_close',{v:b.getAttribute('data-close')});render();toast("하루를 닫았어요");};});
+  document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=function(){var v=b.getAttribute('data-close');E.saveLuck(today(),v,(E.getLuck(today())||{}).note);track('day_close',{v:v});if(v==='good'){openSheet({type:'luckNote'});render();}else{render();toast("하루를 닫았어요");}};});
+  var ln=document.querySelector('[data-luck-note]');if(ln)ln.onclick=function(){openSheet({type:'luckNote'});};
   var ed=document.querySelector('[data-edit]');if(ed)ed.onclick=function(){openSheet({type:'edit'});};
   var po=document.querySelector('[data-policy]');if(po)po.onclick=function(){openSheet({type:'policy'});};
   var rs=document.querySelector('[data-reset]');if(rs)rs.onclick=function(){openSheet({type:'reset'});};
@@ -53,6 +54,8 @@ function bind(){
   var pz=document.querySelector('[data-personalize]');if(pz)pz.onclick=function(){openSheet({type:'edit'});};
   var cs=document.querySelector('[data-card-share]');if(cs)cs.onclick=shareCard;
   var cd=document.querySelector('[data-card-save]');if(cd)cd.onclick=saveCard;
+  document.querySelectorAll('[data-ratio]').forEach(function(b){b.onclick=function(){S.cardRatio=b.getAttribute('data-ratio');render();};});
+  var pl=document.querySelector('[data-plus]');if(pl)pl.onclick=function(){openSheet({type:'plus'});};
   var bl=document.getElementById('brandLogo');if(bl)bl.onclick=function(){_logoTaps++;clearTimeout(_logoTimer);_logoTimer=setTimeout(function(){_logoTaps=0;},1600);if(_logoTaps>=5){_logoTaps=0;openAdminGate();}};
 }
 function openAdminGate(){openSheet({type:'adminGate',code:''});}
@@ -67,13 +70,13 @@ function showAnalyzing(){
   var i=0;var iv=setInterval(function(){i=(i+1)%msgs.length;var m=document.getElementById('anaMsg');if(m){m.style.opacity='0';setTimeout(function(){if(m){m.textContent=msgs[i];m.style.opacity='1';}},180);}},900);
   setTimeout(function(){clearInterval(iv);DB.patchSettings({_step:2});render();},2600);
 }
-async function saveCard(){toast('카드 이미지를 만들고 있어요…');try{var u=await cardImage();downloadDataUrl(u,'ensen-card.png');track('card_save');toast('카드를 이미지로 저장했어요');}catch(e){toast('이미지 저장에 실패했어요');}}
-async function shareCard(){try{var u=await cardImage();var blob=await (await fetch(u)).blob();var file=new File([blob],'ensen-card.png',{type:'image/png'});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],text:'나의 행운 문구 · ENSEN LAB'});track('card_share');}else{downloadDataUrl(u,'ensen-card.png');toast('공유가 지원되지 않아 이미지로 저장했어요');}}catch(e){if(e&&e.name==='AbortError')return;toast('공유를 완료하지 못했어요');}}
+async function saveCard(){toast('카드 이미지를 만들고 있어요…');try{var u=await cardImage(S.cardRatio);downloadDataUrl(u,'ensen-card.png');track('card_save',{ratio:S.cardRatio||'post'});toast('카드를 이미지로 저장했어요');}catch(e){toast('이미지 저장에 실패했어요');}}
+async function shareCard(){try{var u=await cardImage(S.cardRatio);var blob=await (await fetch(u)).blob();var file=new File([blob],'ensen-card.png',{type:'image/png'});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],text:'나의 행운 문구 · ENSEN LAB'});track('card_share');}else{downloadDataUrl(u,'ensen-card.png');toast('공유가 지원되지 않아 이미지로 저장했어요');}}catch(e){if(e&&e.name==='AbortError')return;toast('공유를 완료하지 못했어요');}}
 
 /* ── 시트 ── */
 function openSheet(cfg){S.sheet=cfg;renderSheet();}
 function closeSheet(){S.sheet=null;var w=document.getElementById('sheetWrap');if(w)w.remove();}
-function finishComplete(){var st=S.sheet;var date=st.date;track('mission_complete');closeSheet();
+function finishComplete(date){closeSheet();
   var entry=S.todayEntry;var all=entry&&entry.items.every(function(m,i){return E.isDone(date,i);});
   render();
   if(all){var s=DB.settings();if(s.lastAllDone!==date){DB.patchSettings({lastAllDone:date});openSheet({type:'allDone'});}}
@@ -81,10 +84,24 @@ function finishComplete(){var st=S.sheet;var date=st.date;track('mission_complet
 }
 function renderSheet(){
   var old=document.getElementById('sheetWrap');if(old)old.remove();if(!S.sheet)return;var mid=false,html='';
-  if(S.sheet.type==='complete'){var st=S.sheet;var felt=[["good","좋았어요"],["ok","보통이에요"],["hard","어려웠어요"]];
-    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">이 행동을 마쳤어요</span></div><p class="faint small">회고는 선택이에요. 건너뛰어도 완료로 기록돼요.</p>'+
-      '<div class="qgroup"><p class="q">해보니 어땠나요?</p><div class="opts">'+felt.map(function(o){return '<button class="opt'+(st.felt===o[0]?' on':'')+'" data-felt="'+o[0]+'">'+o[1]+'</button>';}).join('')+'</div></div>'+
-      '<button class="cta gold" style="margin-top:16px" data-c-save>완료로 기록하기</button><button class="ghost" style="margin-top:10px" data-c-skip>회고 건너뛰고 완료</button>';
+  if(S.sheet.type==='luckNote'){
+    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">오늘의 행운 한 줄</span><button class="link" data-close aria-label="닫기">건너뛰기</button></div>'+
+      '<p class="faint small">어떤 좋은 일이었나요? 짧게 남겨두면, 어떤 행동이 행운으로 이어지는지 함께 보여드릴 수 있어요.</p>'+
+      '<div class="field" style="margin-top:12px"><input id="luck-note" type="text" maxlength="60" placeholder="예: 오랜만에 반가운 연락이 왔다"></div>'+
+      '<button class="cta gold" style="margin-top:14px" data-luck-save>기록하기</button>';
+  } else if(S.sheet.type==='plus'){
+    var pi=DB.settings().plusInterest;
+    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">ENSEN PLUS</span><button class="link" data-close aria-label="닫기">닫기</button></div>'+
+      '<p class="faint small">준비 중인 프리미엄이에요. 출시 전에 관심을 등록해 주시면 가장 먼저 알려드릴게요.</p>'+
+      '<div class="card" style="padding:4px 16px;margin-top:12px">'+
+        '<div class="row"><span class="k">행동↔행운 심층 리포트</span><span class="v">월간·오행별</span></div>'+
+        '<div class="row"><span class="k">AI 심층 사주 리포트</span><span class="v">연간·월간</span></div>'+
+        '<div class="row"><span class="k">ENI 꾸미기·한정 카드</span><span class="v">시즌별</span></div>'+
+        '<div class="row"><span class="k">기록·카드 무제한</span><span class="v">원본 화질</span></div>'+
+      '</div>'+
+      '<p class="center" style="margin-top:12px"><span class="serif" style="font-size:15px">월 4,900원 · 연 39,000원 예정</span></p>'+
+      (pi?'<button class="ghost" style="margin-top:12px" disabled>관심 등록 완료 ✓</button>':'<button class="cta gold" style="margin-top:12px" data-plus-interest>출시되면 알려주세요</button>')+
+      '<p class="why-note" style="margin-top:10px">결제는 아직 없어요. 관심 등록은 익명 수요 조사로만 쓰여요.</p>';
   } else if(S.sheet.type==='allDone'){mid=true;
     html='<div style="display:flex;justify-content:center;margin-bottom:6px">'+cat(96,'cheer')+'</div><h1 class="disp" style="font-size:21px">오늘의 미션을<br>모두 마쳤어요</h1><p class="muted small" style="margin-top:8px">작은 약속을 지킨 하루예요. 리포트에서 나의 흐름을 확인해 보세요.</p><button class="cta gold" style="margin-top:18px" data-alldone-ok>리포트 보기</button>';
   } else if(S.sheet.type==='policy'){
@@ -94,9 +111,9 @@ function renderSheet(){
       '<h4>어떻게 쓰이나요</h4><p>선택한 소망·오행·성향을 바탕으로 오늘의 맞춤 행동을 만드는 데에만 써요.</p>'+
       '<h4>어떻게 삭제하나요</h4><p>내 정보의 “데이터 초기화”로 이 기기의 모든 기록을 즉시 지울 수 있어요.</p></div><button class="ghost" style="margin-top:16px" data-close>닫기</button>';
   } else if(S.sheet.type==='reset'){
-    var rn=(function(){var r=DB.reflections(),n=0;for(var k in r)if(k.indexOf('__')!==0)n+=Object.keys(r[k]).length;return n;})();
+    var rn=(function(){var r=DB.reflections(),n=0;for(var k in r)if(k.indexOf('__close_')===0)n++;return n;})();
     html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">데이터를 초기화할까요?</span></div><p class="doc">아래 기록이 <b>모두 삭제</b>되고 복구할 수 없어요.</p>'+
-      '<div class="card" style="padding:2px 16px;margin-top:10px"><div class="row"><span class="k">소망·개인화 정보</span><span class="v">전체</span></div><div class="row"><span class="k">완료 기록</span><span class="v">'+E.completedCountAll()+'건</span></div><div class="row"><span class="k">회고 기록</span><span class="v">'+rn+'건</span></div></div>'+
+      '<div class="card" style="padding:2px 16px;margin-top:10px"><div class="row"><span class="k">소망·개인화 정보</span><span class="v">전체</span></div><div class="row"><span class="k">완료 기록</span><span class="v">'+E.completedCountAll()+'건</span></div><div class="row"><span class="k">하루 닫기·행운 기록</span><span class="v">'+rn+'건</span></div></div>'+
       '<button class="cta" style="margin-top:16px;background:var(--coral)" data-reset-confirm>모두 삭제</button><button class="ghost" style="margin-top:10px" data-close>취소</button>';
   } else if(S.sheet.type==='edit'){var s=DB.settings();var p=DB.profile();var w=s.wishes||[];var mb=p.mbti||"____";var pairs=[["E","I",0],["S","N",1],["T","F",2],["J","P",3]];
     html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">소망 · 개인화</span><button class="link" data-close aria-label="닫기">닫기</button></div>'+
@@ -113,9 +130,9 @@ function renderSheet(){
       '<button class="cta gold" style="margin-top:12px" data-adm-enter>확인</button>';
   } else if(S.sheet.type==='admin'){
     var comp=E.completedCountAll();var stk=E.streak();var lv=E.level();var sym=E.symbolsUnlocked();
-    var r=DB.reflections();var refl=0;for(var k in r)if(k.indexOf('__')!==0)refl+=Object.keys(r[k]).length;
+    var r=DB.reflections();var refl=0;for(var k in r)if(k.indexOf('__close_')===0)refl++;
     var closes=Object.keys(DB.completions()).length;
-    var cells=[["완료 행동",comp],["연속(일)",stk],["기록한 날",closes],["회고",refl],["레벨",lv],["상징",sym]];
+    var cells=[["완료 행동",comp],["연속(일)",stk],["기록한 날",closes],["행운 기록",refl],["레벨",lv],["상징",sym]];
     html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">관리자 · 로컬 진단</span><button class="link" data-close aria-label="닫기">닫기</button></div>'+
       '<div class="adm-metrics">'+cells.map(function(x){return '<div class="cell"><b>'+x[1]+'</b><small>'+x[0]+'</small></div>';}).join('')+'</div>'+
       '<div class="card" style="padding:2px 16px;margin-top:12px">'+
@@ -136,11 +153,9 @@ function renderSheet(){
 }
 function bindSheet(){
   document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=closeSheet;});
-  document.querySelectorAll('[data-felt]').forEach(function(b){b.onclick=function(){S.sheet.felt=b.getAttribute('data-felt');renderSheet();};});
-  document.querySelectorAll('[data-again]').forEach(function(b){b.onclick=function(){S.sheet.again=b.getAttribute('data-again');renderSheet();};});
-  var save=document.querySelector('[data-c-save]');if(save)save.onclick=function(){var st=S.sheet;E.markDone(st.date,st.i);if(st.felt)E.saveReflection(st.date,st.i,st.felt);finishComplete();};
   var ako=document.querySelector('[data-alldone-ok]');if(ako)ako.onclick=function(){closeSheet();nav('report');};
-  var skip=document.querySelector('[data-c-skip]');if(skip)skip.onclick=function(){var st=S.sheet;E.markDone(st.date,st.i);finishComplete();};
+  var ls=document.querySelector('[data-luck-save]');if(ls)ls.onclick=function(){var note=(document.getElementById('luck-note').value||'').trim();E.saveLuck(today(),'good',note);if(note)track('luck_note');closeSheet();render();toast(note?'행운을 기록했어요 ✦':'기록했어요');};
+  var pin=document.querySelector('[data-plus-interest]');if(pin)pin.onclick=function(){DB.patchSettings({plusInterest:true});track('plus_interest');renderSheet();toast('관심을 등록했어요. 가장 먼저 알려드릴게요!');};
   var rc=document.querySelector('[data-reset-confirm]');if(rc)rc.onclick=function(){DB.clearAll();closeSheet();S.todayEntry=null;S.tab="home";render();toast("모든 기록을 지웠어요");};
   document.querySelectorAll('[data-ewish]').forEach(function(b){b.onclick=function(){var s=DB.settings();var w=(s.wishes||[]).slice();var id=b.getAttribute('data-ewish');var i=w.indexOf(id);if(i>=0){if(w.length<=1){toast("소망은 하나 이상이어야 해요");return;}w.splice(i,1);}else w.push(id);DB.patchSettings({wishes:w});renderSheet();};});
   document.querySelectorAll('[data-embti]').forEach(function(b){b.onclick=function(){var idx=parseInt(b.getAttribute('data-embti'),10);var val=b.getAttribute('data-val');var mb=(DB.profile().mbti||"____").split('');mb[idx]=(mb[idx]===val?"_":val);DB.patchProfile({mbti:mb.join('')});renderSheet();};});

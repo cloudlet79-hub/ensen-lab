@@ -77,22 +77,34 @@ export function swapMission(i){
   var c=DB.completions();if(c[date])delete c[date][String(i)];DB.setCompletions(c);
   DB.setMissions(m);return entry;
 }
-// 완료/회고 (분리 저장)
+// 완료 (원탭)
 export function isDone(date,i){var c=DB.completions();return !!(c[date]&&c[date][String(i)]);}
 export function markDone(date,i){var c=DB.completions();c[date]=c[date]||{};c[date][String(i)]={t:Date.now()};DB.setCompletions(c);}
-export function unmarkDone(date,i){var c=DB.completions();if(c[date])delete c[date][String(i)];DB.setCompletions(c);var r=DB.reflections();if(r[date])delete r[date][String(i)];DB.setReflections(r);}
-export function saveReflection(date,i,felt,again){var r=DB.reflections();r[date]=r[date]||{};r[date][String(i)]={felt:felt||null,again:again||null,t:Date.now()};DB.setReflections(r);}
+export function unmarkDone(date,i){var c=DB.completions();if(c[date])delete c[date][String(i)];DB.setCompletions(c);}
+/* 하루 닫기 = 행운 기록 (핵심 데이터: 행동 × 좋은 일) */
+export function saveLuck(date,v,note){var r=DB.reflections();r['__close_'+date]={v:v,note:(note||'').slice(0,80),t:Date.now()};DB.setReflections(r);}
+export function getLuck(date){var r=DB.reflections();var e=r['__close_'+date];if(!e)return null;if(typeof e==='string')return {v:e,note:''};return e;}
+export function luckJournal(limit){var r=DB.reflections();var out=[];for(var k in r){if(k.indexOf('__close_')===0){var e=r[k];var v=(typeof e==='string')?{v:e,note:''}:e;out.push({date:k.slice(8),v:v.v,note:v.note||''});}}out.sort(function(a,b){return a.date<b.date?1:-1;});return out.slice(0,limit||10);}
+/* 행동↔행운 상관: 최근 14일, 미션 완료한 날 vs 아닌 날의 '좋은 일' 기록률 */
+export function luckCorrelation(){
+  var c=DB.completions();var days=0,cGood=0,cDays=0,oGood=0,oDays=0;
+  for(var i=0;i<14;i++){var d=dAgo(i);var luck=getLuck(d);var completed=c[d]&&Object.keys(c[d]).length>0;
+    if(!luck&&!completed)continue;days++;
+    if(completed){cDays++;if(luck&&luck.v==='good')cGood++;}
+    else{oDays++;if(luck&&luck.v==='good')oGood++;}}
+  return {days:days,cDays:cDays,cRate:cDays?Math.round(cGood/cDays*100):null,oDays:oDays,oRate:oDays?Math.round(oGood/oDays*100):null};
+}
 // 지표
 export function completedCountAll(){var c=DB.completions(),n=0;for(var k in c)n+=Object.keys(c[k]).length;return n;}
 export function streak(){var c=DB.completions(),d=new Date(),n=0;for(var i=0;i<400;i++){var ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');var has=c[ds]&&Object.keys(c[ds]).length;if(has)n++;else if(i>0)break;d.setDate(d.getDate()-1);}return n;}
 export function level(){return 1+Math.floor(completedCountAll()/6);}
 export function symbolsUnlocked(){return Math.min(REWARD.length,Math.floor(completedCountAll()/2)+2);}
 export function weekly(){
-  var c=DB.completions(),r=DB.reflections(),m=DB.missions();
-  var completed=0,tagCount={},good=0,reflTotal=0,days=0;
+  var c=DB.completions(),m=DB.missions();
+  var completed=0,tagCount={},days=0,luckGood=0,luckDays=0;
   for(var i=0;i<7;i++){var d=dAgo(i);var cd=c[d]?Object.keys(c[d]):[];if(cd.length)days++;completed+=cd.length;
     cd.forEach(function(idx){var it=m[d]&&m[d].items&&m[d].items[parseInt(idx,10)];var tag=it?it.tag:null;if(tag)tagCount[tag]=(tagCount[tag]||0)+1;});
-    if(r[d])for(var k in r[d]){var f=r[d][k].felt;if(f){reflTotal++;if(f==='good')good++;}}}
+    var luck=getLuck(d);if(luck){luckDays++;if(luck.v==='good')luckGood++;}}
   var topTag=null,mx=0;for(var t in tagCount)if(tagCount[t]>mx){mx=tagCount[t];topTag=t;}
-  return {completed:completed,days:days,topTag:topTag,pos:reflTotal?Math.round(good/reflTotal*100):null};
+  return {completed:completed,days:days,topTag:topTag,luckDays:luckDays,luckRate:luckDays?Math.round(luckGood/luckDays*100):null};
 }

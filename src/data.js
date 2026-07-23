@@ -139,3 +139,27 @@ export var POOL=[
   {w:"change",min:5,g:"nabi",c:"#8B7BE8",s:"일 년 뒤 나에게 짧은 편지 쓰기",r:"미래의 내가 오늘의 나를 이끕니다."}
 ];
 export var REWARD=["clover","byeol","nabi","saessak","nachimban","dal","maehwa","taeyang","muhandae","mandala"];
+
+/* 개인 고유 심벌 DB (과거 v6 심벌 지식베이스 계승 · 서사 포함) */
+export var SYMBOLS=[
+  {id:"saessak",nm:"새싹",en:"Sprout",oh:"목",desc:"막 흙을 밀고 나온 첫 잎. 새로 시작하는 모든 것에 힘을 줍니다.",tags:["시작","성장","가능성"]},
+  {id:"daenamu",nm:"대나무",en:"Bamboo",oh:"목",desc:"속은 비우고 마디마디 곧게 오르는 나무. 흔들려도 부러지지 않는 성장의 상징.",tags:["곧음","절개","성장"]},
+  {id:"taeyang",nm:"태양",en:"Sun",oh:"화",desc:"어둠을 걷어내고 하루를 밝히는 빛. 스스로 빛나는 힘을 줍니다.",tags:["빛","활력","중심"]},
+  {id:"byeol",nm:"별",en:"Star",oh:"화",desc:"밤이 깊을수록 선명해지는 빛. 길을 잃지 않게 하는 표식입니다.",tags:["빛","꿈","표식"]},
+  {id:"taegeuk",nm:"태극",en:"Taegeuk",oh:"토",desc:"음과 양이 맞물려 돌아가는 우주의 균형. 치우침 없이 흐름을 되찾게 하는 상징입니다.",tags:["조화","균형","순환"]},
+  {id:"samtaeguk",nm:"삼태극",en:"Sam-Taegeuk",oh:"토",desc:"하늘·땅·사람 세 기운이 하나로 감기는 문양. 사람과 사람 사이의 화합을 부릅니다.",tags:["천지인","화합","상생"]},
+  {id:"maehwa",nm:"매화",en:"Plum Blossom",oh:"금",desc:"가장 추운 끝에 가장 먼저 피는 꽃. 견딘 시간이 결실로 바뀌는 순간을 뜻합니다.",tags:["인내","고결","첫 개화"]},
+  {id:"nachimban",nm:"나침반",en:"Compass Rose",oh:"금",desc:"사방 어디서든 길을 잃지 않게 하는 도구. 결단의 순간에 힘을 줍니다.",tags:["방향","결단","항로"]},
+  {id:"yeonkkot",nm:"연꽃",en:"Lotus",oh:"수",desc:"진흙 속에서 물들지 않고 피어나는 꽃. 지난 일을 씻어내고 다시 피어남을 뜻합니다.",tags:["청정","재생","초월"]},
+  {id:"dal",nm:"달",en:"Moon",oh:"수",desc:"차고 기울며 다시 차오르는 빛. 서두르지 않는 회복을 뜻합니다.",tags:["회복","리듬","고요"]}
+];
+
+/* 하루 닫기 · 마음 케어 카테고리 */
+export var BURDENS=[
+  {id:"work",lb:"일·공부",care:"calm",msg:"애쓴 하루였네요. 내일은 마음을 고르는 행동을 함께 담아둘게요."},
+  {id:"people",lb:"사람·관계",care:"calm",msg:"마음 쓰인 하루였겠어요. 내일은 나를 다독이는 행동을 준비할게요."},
+  {id:"body",lb:"몸·컨디션",care:"health",msg:"몸이 무거운 날이었군요. 내일은 가볍게 돌보는 행동을 담아둘게요."},
+  {id:"mind",lb:"마음·기분",care:"happy",msg:"그런 날도 있어요. 내일은 마음을 데우는 행동을 준비할게요."},
+  {id:"none",lb:"없었어요",care:null,msg:"다행이에요. 오늘의 결이 내일도 이어지길."}
+];
+export function burdenLb(id){for(var i=0;i<BURDENS.length;i++)if(BURDENS[i].id===id)return BURDENS[i].lb;return "";}

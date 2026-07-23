@@ -47,6 +47,7 @@ function bind(){
   document.querySelectorAll('[data-undo]').forEach(function(b){b.onclick=function(){E.unmarkDone(today(),parseInt(b.getAttribute('data-undo'),10));render();toast("완료를 취소했어요");};});
   document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=function(){var v=b.getAttribute('data-close');E.saveLuck(today(),v,(E.getLuck(today())||{}).note);track('day_close',{v:v});if(v==='good'){openSheet({type:'luckNote'});render();}else{render();toast("하루를 닫았어요");}};});
   var ln=document.querySelector('[data-luck-note]');if(ln)ln.onclick=function(){openSheet({type:'luckNote'});};
+  document.querySelectorAll('[data-burden]').forEach(function(b){b.onclick=function(){var id=b.getAttribute('data-burden');E.saveCare(today(),id);track('day_care',{b:id});render();};});
   var ed=document.querySelector('[data-edit]');if(ed)ed.onclick=function(){openSheet({type:'edit'});};
   var po=document.querySelector('[data-policy]');if(po)po.onclick=function(){openSheet({type:'policy'});};
   var rs=document.querySelector('[data-reset]');if(rs)rs.onclick=function(){openSheet({type:'reset'});};
@@ -85,13 +86,13 @@ function finishComplete(date){closeSheet();
 function renderSheet(){
   var old=document.getElementById('sheetWrap');if(old)old.remove();if(!S.sheet)return;var mid=false,html='';
   if(S.sheet.type==='luckNote'){
-    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">오늘의 행운 한 줄</span><button class="link" data-close aria-label="닫기">건너뛰기</button></div>'+
+    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">오늘의 행운 한 줄</span><button class="link" data-sclose aria-label="닫기">건너뛰기</button></div>'+
       '<p class="faint small">어떤 좋은 일이었나요? 짧게 남겨두면, 어떤 행동이 행운으로 이어지는지 함께 보여드릴 수 있어요.</p>'+
       '<div class="field" style="margin-top:12px"><input id="luck-note" type="text" maxlength="60" placeholder="예: 오랜만에 반가운 연락이 왔다"></div>'+
       '<button class="cta gold" style="margin-top:14px" data-luck-save>기록하기</button>';
   } else if(S.sheet.type==='plus'){
     var pi=DB.settings().plusInterest;
-    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">ENSEN PLUS</span><button class="link" data-close aria-label="닫기">닫기</button></div>'+
+    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">ENSEN PLUS</span><button class="link" data-sclose aria-label="닫기">닫기</button></div>'+
       '<p class="faint small">준비 중인 프리미엄이에요. 출시 전에 관심을 등록해 주시면 가장 먼저 알려드릴게요.</p>'+
       '<div class="card" style="padding:4px 16px;margin-top:12px">'+
         '<div class="row"><span class="k">행동↔행운 심층 리포트</span><span class="v">월간·오행별</span></div>'+
@@ -105,18 +106,18 @@ function renderSheet(){
   } else if(S.sheet.type==='allDone'){mid=true;
     html='<div style="display:flex;justify-content:center;margin-bottom:6px">'+cat(96,'cheer')+'</div><h1 class="disp" style="font-size:21px">오늘의 미션을<br>모두 마쳤어요</h1><p class="muted small" style="margin-top:8px">작은 약속을 지킨 하루예요. 리포트에서 나의 흐름을 확인해 보세요.</p><button class="cta gold" style="margin-top:18px" data-alldone-ok>리포트 보기</button>';
   } else if(S.sheet.type==='policy'){
-    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">개인정보 처리방침</span><button class="link" data-close aria-label="닫기">닫기</button></div><div class="doc">'+
+    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">개인정보 처리방침</span><button class="link" data-sclose aria-label="닫기">닫기</button></div><div class="doc">'+
       '<h4>무엇을 저장하나요</h4><p>선택한 소망과 생년월일·직업·장소·성향(입력한 경우), 완료·회고 기록을 저장해요. 이름·연락처는 수집하지 않아요.</p>'+
       '<h4>어디에 저장되나요</h4><p>기록은 이 브라우저(localStorage)에만 저장돼요. 미션 생성을 위해 개인화 정보가 ENSEN의 서버 함수(Supabase)와 AI 제공자에 일시 전송될 수 있으나 별도로 보관하지 않아요.</p>'+
       '<h4>어떻게 쓰이나요</h4><p>선택한 소망·오행·성향을 바탕으로 오늘의 맞춤 행동을 만드는 데에만 써요.</p>'+
-      '<h4>어떻게 삭제하나요</h4><p>내 정보의 “데이터 초기화”로 이 기기의 모든 기록을 즉시 지울 수 있어요.</p></div><button class="ghost" style="margin-top:16px" data-close>닫기</button>';
+      '<h4>어떻게 삭제하나요</h4><p>내 정보의 “데이터 초기화”로 이 기기의 모든 기록을 즉시 지울 수 있어요.</p></div><button class="ghost" style="margin-top:16px" data-sclose>닫기</button>';
   } else if(S.sheet.type==='reset'){
     var rn=(function(){var r=DB.reflections(),n=0;for(var k in r)if(k.indexOf('__close_')===0)n++;return n;})();
     html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">데이터를 초기화할까요?</span></div><p class="doc">아래 기록이 <b>모두 삭제</b>되고 복구할 수 없어요.</p>'+
       '<div class="card" style="padding:2px 16px;margin-top:10px"><div class="row"><span class="k">소망·개인화 정보</span><span class="v">전체</span></div><div class="row"><span class="k">완료 기록</span><span class="v">'+E.completedCountAll()+'건</span></div><div class="row"><span class="k">하루 닫기·행운 기록</span><span class="v">'+rn+'건</span></div></div>'+
-      '<button class="cta" style="margin-top:16px;background:var(--coral)" data-reset-confirm>모두 삭제</button><button class="ghost" style="margin-top:10px" data-close>취소</button>';
+      '<button class="cta" style="margin-top:16px;background:var(--coral)" data-reset-confirm>모두 삭제</button><button class="ghost" style="margin-top:10px" data-sclose>취소</button>';
   } else if(S.sheet.type==='edit'){var s=DB.settings();var p=DB.profile();var w=s.wishes||[];var mb=p.mbti||"____";var pairs=[["E","I",0],["S","N",1],["T","F",2],["J","P",3]];
-    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">소망 · 개인화</span><button class="link" data-close aria-label="닫기">닫기</button></div>'+
+    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">소망 · 개인화</span><button class="link" data-sclose aria-label="닫기">닫기</button></div>'+
       '<div class="field" style="margin-top:6px"><span>닉네임</span><input id="e-nick" type="text" placeholder="예: 구름" value="'+esc(p.nickname||'')+'"></div><div class="field"><span>소망 (복수)</span><div class="wgrid">'+WISHES.map(function(x){var on=w.indexOf(x.id)>=0;return '<button class="wq'+(on?' on':'')+'" data-ewish="'+x.id+'"><span class="chk"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span><span class="ic" style="color:'+x.c+'">'+wishIcon(x.id,x.c)+'</span><span class="lb">'+x.lb+'</span></button>';}).join('')+'</div></div>'+
       '<div class="field"><span>생년월일</span><input id="e-birth" type="date" max="'+today()+'" value="'+(p.birth||defaultBirth())+'"></div>'+
       '<div class="field"><span>직업</span><input id="e-job" type="text" value="'+esc(p.job||'')+'"></div>'+
@@ -124,7 +125,7 @@ function renderSheet(){
       '<div class="field"><span>성향(MBTI)</span><div class="mbti">'+pairs.map(function(pr){var cur=mb[pr[2]];return '<button data-embti="'+pr[2]+'" data-val="'+pr[0]+'" class="'+(cur===pr[0]?'on':'')+'">'+pr[0]+'</button><button data-embti="'+pr[2]+'" data-val="'+pr[1]+'" class="'+(cur===pr[1]?'on':'')+'">'+pr[1]+'</button>';}).join('')+'</div></div>'+
       '<p class="why-note">소망을 바꾸면 오늘의 미션이 새로 만들어져요.</p><button class="cta gold" style="margin-top:12px" data-edit-save>저장</button>';
   } else if(S.sheet.type==='adminGate'){
-    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">관리자 접근</span><button class="link" data-close aria-label="닫기">닫기</button></div>'+
+    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">관리자 접근</span><button class="link" data-sclose aria-label="닫기">닫기</button></div>'+
       '<p class="faint small">관리자 접근 코드를 입력하세요.</p>'+
       '<div class="field" style="margin-top:10px"><input id="adm-code" type="password" placeholder="접근 코드" autocomplete="off"></div>'+
       '<button class="cta gold" style="margin-top:12px" data-adm-enter>확인</button>';
@@ -133,7 +134,7 @@ function renderSheet(){
     var r=DB.reflections();var refl=0;for(var k in r)if(k.indexOf('__close_')===0)refl++;
     var closes=Object.keys(DB.completions()).length;
     var cells=[["완료 행동",comp],["연속(일)",stk],["기록한 날",closes],["행운 기록",refl],["레벨",lv],["상징",sym]];
-    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">관리자 · 로컬 진단</span><button class="link" data-close aria-label="닫기">닫기</button></div>'+
+    html='<div class="sheet-grip"></div><div class="sheet-h"><span class="t">관리자 · 로컬 진단</span><button class="link" data-sclose aria-label="닫기">닫기</button></div>'+
       '<div class="adm-metrics">'+cells.map(function(x){return '<div class="cell"><b>'+x[1]+'</b><small>'+x[0]+'</small></div>';}).join('')+'</div>'+
       '<div class="card" style="padding:2px 16px;margin-top:12px">'+
         '<div class="row"><span class="k">닉네임</span><span class="v">'+esc(DB.profile().nickname||"—")+'</span></div>'+
@@ -142,7 +143,7 @@ function renderSheet(){
       '</div>'+
       '<div class="sect" style="margin-top:14px"><span class="t" style="font-family:var(--disp);font-size:14px">서버 지표 (전체 사용자)</span></div>'+
       '<div id="admServer" class="why-note">서버 지표를 불러오는 중…</div>'+
-      '<button class="cta gold" style="margin-top:14px" data-adm-export>데이터 내보내기 (JSON)</button><button class="ghost" style="margin-top:10px" data-close>닫기</button>'+
+      '<button class="cta gold" style="margin-top:14px" data-adm-export>데이터 내보내기 (JSON)</button><button class="ghost" style="margin-top:10px" data-sclose>닫기</button>'+
       '<p class="why-note" style="margin-top:12px">이 기기의 로컬 데이터 요약입니다. 접근 코드는 src/store.js의 ADMIN_CODE에서 바꿀 수 있고, 실제 관리자 권한·전체 회원 지표는 서버 콘솔에서 관리합니다(프런트에 권한 로직 없음).</p>';
   }
   var wrap=document.createElement('div');
@@ -152,7 +153,7 @@ function renderSheet(){
   bindSheet();
 }
 function bindSheet(){
-  document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=closeSheet;});
+  document.querySelectorAll('[data-sclose]').forEach(function(b){b.onclick=closeSheet;});
   var ako=document.querySelector('[data-alldone-ok]');if(ako)ako.onclick=function(){closeSheet();nav('report');};
   var ls=document.querySelector('[data-luck-save]');if(ls)ls.onclick=function(){var note=(document.getElementById('luck-note').value||'').trim();E.saveLuck(today(),'good',note);if(note)track('luck_note');closeSheet();render();toast(note?'행운을 기록했어요 ✦':'기록했어요');};
   var pin=document.querySelector('[data-plus-interest]');if(pin)pin.onclick=function(){DB.patchSettings({plusInterest:true});track('plus_interest');renderSheet();toast('관심을 등록했어요. 가장 먼저 알려드릴게요!');};
@@ -166,7 +167,7 @@ function bindSheet(){
     fetchAdminSummary(S.sheet.code||ADMIN_CODE).then(function(d){
       var box=document.getElementById('admServer');if(!box)return;
       if(!d||d.ok!==true){box.textContent='서버 지표를 불러오지 못했어요 (오프라인 또는 코드 불일치).';return;}
-      var cells=[["전체 사용자",d.users_total],["7일 활성",d.active_7d],["7일 완료",d.completes_7d],["7일 하루닫기",d.closes_7d],["7일 카드",d.cards_7d],["AI 호출 7일",d.ai_calls_7d],["AI 실패 7일",d.ai_fail_7d],["AI 토큰 7일",d.ai_tokens_7d]];
+      var cells=[["전체 사용자",d.users_total],["7일 활성",d.active_7d],["7일 완료",d.completes_7d],["7일 하루닫기",d.closes_7d],["7일 카드",d.cards_7d],["AI 호출 7일",d.ai_calls_7d],["AI 토큰 7일",d.ai_tokens_7d],["PLUS 관심",d.plus_7d]];
       box.outerHTML='<div class="adm-metrics" id="admServer">'+cells.map(function(x){return '<div class="cell"><b>'+(x[1]==null?0:x[1])+'</b><small>'+x[0]+'</small></div>';}).join('')+'</div><p class="why-note">룰셋 v'+(d.ruleset_v==null?'—':d.ruleset_v)+' 적용 중 · 코드 검증은 서버(admin_summary)가 수행</p>';
     });
   }

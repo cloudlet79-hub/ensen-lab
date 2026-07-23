@@ -1,6 +1,6 @@
 // 엔진 — 오행 분석 · 행운 문구 · 미션 생성(AI+로컬) · 완료/회고 · 지표
 import { DB, FN_URL, SUPA_ANON, cachedRuleset } from './store.js';
-import { POOL, OHAENG, FORTUNE_GEN, OH_ADVICE, MBTI_NOTE, REWARD, wishLb } from './data.js';
+import { POOL, OHAENG, FORTUNE_GEN, OH_ADVICE, MBTI_NOTE, REWARD, wishLb, SYMBOLS, BURDENS, burdenLb } from './data.js';
 import { colorForGlyph } from './assets.js';
 import { today, dAgo, hash, shuffleSeeded } from './util.js';
 
@@ -34,6 +34,13 @@ function activePhrases(oh){
   return OHAENG[oh]?OHAENG[oh].phrases:null;
 }
 export function rulesetVersion(){var rs=cachedRuleset();return rs?rs.version:0;}
+/* 개인 고유 심벌 (오행 + 시드로 결정적 부여) */
+export function personalSymbol(){
+  var p=DB.profile();var oh=p.ohaeng;
+  var cand=oh?SYMBOLS.filter(function(x){return x.oh===oh;}):SYMBOLS;
+  if(!cand.length)cand=SYMBOLS;
+  return cand[hash(seedId()+'sym')%cand.length];
+}
 
 export function fortune(){
   var p=DB.profile();var oh=p.ohaeng;var seed=hash(seedId()+today());
@@ -46,11 +53,20 @@ export function localMissions(count){
   var s=DB.settings();var wishes=(s.wishes&&s.wishes.length)?s.wishes:["happy"];
   var seed=hash(seedId()+today()+wishes.join(',')+(DB.profile().ohaeng||''));
   var pool=eligiblePool();if(!pool.length)pool=activePool().slice();
-  return shuffleSeeded(pool,seed).slice(0,count||3).map(function(a){return {sentence:a.s,minutes:a.min,tag:wishLb(a.w),reason:a.r,glyph:a.g,color:a.c,source:"local"};});
+  var out=shuffleSeeded(pool,seed).slice(0,count||3).map(function(a){return {sentence:a.s,minutes:a.min,tag:wishLb(a.w),reason:a.r,glyph:a.g,color:a.c,source:"local"};});
+  /* 어제 마음이 무거웠다면 → 케어 미션 하나 주입 */
+  var care=getCare(dAgo(1));var meta=care&&care.burden?careMeta(care.burden):null;
+  if(meta&&meta.care&&out.length>=2){
+    var used=out.map(function(x){return x.sentence;});
+    var cp=activePool().filter(function(a){return a.w===meta.care&&a.min<=3&&used.indexOf(a.s)<0;});
+    if(cp.length){var pick=shuffleSeeded(cp,hash(seedId()+today()+'care'))[0];
+      out[out.length-1]={sentence:pick.s,minutes:pick.min,tag:"마음 돌봄",reason:"어제 "+burdenLb(care.burden)+"이(가) 무거웠다고 하셔서, 가볍게 돌보는 행동을 담았어요.",glyph:pick.g,color:"#2FB39B",source:"local"};}
+  }
+  return out;
 }
 export function aiMissions(count){
   var s=DB.settings();var p=DB.profile();
-  var body={date:today(),seedId:seedId(),count:count||3,profile:{wishes:(s.wishes||[]).map(wishLb),ohaeng:p.ohaeng||null,birth:p.birth||null,job:p.job||null,place:p.place||null,mbti:(p.mbti&&p.mbti.indexOf('_')<0?p.mbti:null)}};
+  var body={date:today(),seedId:seedId(),count:count||3,profile:{wishes:(s.wishes||[]).map(wishLb),ohaeng:p.ohaeng||null,birth:p.birth||null,job:p.job||null,place:p.place||null,mbti:(p.mbti&&p.mbti.indexOf('_')<0?p.mbti:null),burden:(function(){var c=getCare(dAgo(1));return c&&c.burden&&c.burden!=='none'?burdenLb(c.burden):null;})()}};
   return fetch(FN_URL,{method:"POST",headers:{"apikey":SUPA_ANON,"Authorization":"Bearer "+SUPA_ANON,"Content-Type":"application/json"},body:JSON.stringify(body)})
     .then(function(r){return r.json();})
     .then(function(d){
@@ -83,6 +99,9 @@ export function markDone(date,i){var c=DB.completions();c[date]=c[date]||{};c[da
 export function unmarkDone(date,i){var c=DB.completions();if(c[date])delete c[date][String(i)];DB.setCompletions(c);}
 /* 하루 닫기 = 행운 기록 (핵심 데이터: 행동 × 좋은 일) */
 export function saveLuck(date,v,note){var r=DB.reflections();r['__close_'+date]={v:v,note:(note||'').slice(0,80),t:Date.now()};DB.setReflections(r);}
+export function saveCare(date,burden){var r=DB.reflections();r['__care_'+date]={burden:burden,t:Date.now()};DB.setReflections(r);}
+export function getCare(date){var r=DB.reflections();return r['__care_'+date]||null;}
+export function careMeta(id){for(var i=0;i<BURDENS.length;i++)if(BURDENS[i].id===id)return BURDENS[i];return null;}
 export function getLuck(date){var r=DB.reflections();var e=r['__close_'+date];if(!e)return null;if(typeof e==='string')return {v:e,note:''};return e;}
 export function luckJournal(limit){var r=DB.reflections();var out=[];for(var k in r){if(k.indexOf('__close_')===0){var e=r[k];var v=(typeof e==='string')?{v:e,note:''}:e;out.push({date:k.slice(8),v:v.v,note:v.note||''});}}out.sort(function(a,b){return a.date<b.date?1:-1;});return out.slice(0,limit||10);}
 /* 행동↔행운 상관: 최근 14일, 미션 완료한 날 vs 아닌 날의 '좋은 일' 기록률 */

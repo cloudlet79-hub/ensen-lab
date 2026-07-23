@@ -1,6 +1,6 @@
 // 화면 렌더 — 온보딩(소개→입력→분석→소망) + 탭(홈·미션·컬렉션·리포트·나)
-import { logo, cat, glyph, wishIcon, colorForGlyph } from './assets.js';
-import { WISHES, wishLb, REWARD } from './data.js';
+import { logo, cat, glyph, wishIcon, colorForGlyph, catIcon, catMood } from './assets.js';
+import { WISHES, wishLb, REWARD, BURDENS } from './data.js';
 import { DB } from './store.js';
 import { esc, today, hex2bg, defaultBirth } from './util.js';
 import * as E from './engine.js';
@@ -77,8 +77,8 @@ function fortuneCard(){
 }
 function missionItem(m,i,date,compact){
   var d=E.isDone(date,i);
-  if(d)return '<div class="m done"><span class="ic" style="background:'+hex2bg(m.color)+';color:'+m.color+'">'+glyph(m.glyph,m.color,4.5)+'</span><div class="tx"><p class="ln">'+esc(m.sentence)+'</p><div class="act"><span class="done-tag"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>완료</span>'+(compact?'':'<button class="undo" data-undo="'+i+'">완료 취소</button>')+'</div></div></div>';
-  return '<div class="m"><span class="ic" style="background:'+hex2bg(m.color)+';color:'+m.color+'">'+glyph(m.glyph,m.color,4.5)+'</span><div class="tx"><p class="ln">'+esc(m.sentence)+'</p>'+(m.reason?'<p class="why">'+esc(m.reason)+'</p>':'')+'<p class="mt">'+m.minutes+'분'+(m.tag?' · '+esc(m.tag):'')+'</p><div class="act"><button class="btn-done" data-complete="'+i+'"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>완료하기</button>'+(compact?'':'<button class="btn-swap" data-swap="'+i+'" aria-label="다른 미션으로 바꾸기"><svg viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg></button>')+'</div></div></div>';
+  if(d)return '<div class="m done"><span class="ic" style="background:'+hex2bg(m.color)+';color:'+m.color+'">'+catIcon(m.color,'joy')+'</span><div class="tx"><p class="ln">'+esc(m.sentence)+'</p><div class="act"><span class="done-tag"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>완료</span>'+(compact?'':'<button class="undo" data-undo="'+i+'">완료 취소</button>')+'</div></div></div>';
+  return '<div class="m"><span class="ic" style="background:'+hex2bg(m.color)+';color:'+m.color+'">'+catIcon(m.color,catMood(m.sentence))+'</span><div class="tx"><p class="ln">'+esc(m.sentence)+'</p>'+(m.reason?'<p class="why">'+esc(m.reason)+'</p>':'')+'<p class="mt">'+m.minutes+'분'+(m.tag?' · '+esc(m.tag):'')+'</p><div class="act"><button class="btn-done" data-complete="'+i+'"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>완료하기</button>'+(compact?'':'<button class="btn-swap" data-swap="'+i+'" aria-label="다른 미션으로 바꾸기"><svg viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg></button>')+'</div></div></div>';
 }
 
 /* ── 홈 ── */
@@ -98,7 +98,7 @@ export function viewHome(S){
     var lead=entry.items[nextIdx>=0?nextIdx:0];
     var nextTxt=allDone?'모두 마쳤어요! 잘했어요':lead.sentence;
     summary='<button class="card" style="width:100%;text-align:left;padding:16px 18px;display:flex;align-items:center;gap:14px" data-nav="missions">'+
-      '<span class="ic" style="width:44px;height:44px;flex:none;border-radius:12px;display:grid;place-items:center;background:'+hex2bg(lead.color)+';color:'+lead.color+'">'+glyph(lead.glyph,lead.color,4.5)+'</span>'+
+      '<span class="ic" style="width:44px;height:44px;flex:none;border-radius:12px;display:grid;place-items:center;background:'+hex2bg(lead.color)+';color:'+lead.color+'">'+catIcon(lead.color,catMood(lead.sentence))+'</span>'+
       '<span style="flex:1"><span class="t" style="font-family:var(--disp);font-size:15px;display:block">오늘의 미션 '+doneN+' / '+total+'</span><span class="faint small">'+esc(nextTxt)+'</span></span>'+
       '<span class="faint" style="font-size:20px">›</span></button>'+
       (entry.source==='ai'?'<p class="srcnote">✦ AI가 나에게 맞춰 제안했어요</p>':'<p class="srcnote">지금은 기기 내 개인화 추천으로 보여드려요</p>');
@@ -111,11 +111,17 @@ export function viewHome(S){
 }
 function viewCloseInline(date){
   var luck=E.getLuck(date);var v=luck?luck.v:null;
+  var care=E.getCare(date);var cb=care?care.burden:null;
   var noteLine=luck&&luck.note?'<p class="serif small" style="margin-top:10px;color:#5a4a2a">“'+esc(luck.note)+'”</p>':(v==='good'?'<button class="link small" style="margin-top:10px" data-luck-note>어떤 좋은 일이었는지 한 줄 남기기</button>':'');
-  return '<section class="calm" style="background:#fbf7ee;border-color:#efe1c6"><p class="t" style="font-family:var(--serif)">오늘, 좋은 일이 있었나요?</p>'+
+  var careBlock='';
+  if(v){
+    if(cb){var cm=E.careMeta(cb);careBlock='<p class="serif small" style="margin-top:12px;color:#5a5a4a">'+esc(cm?cm.msg:'')+'</p>';}
+    else careBlock='<div style="margin-top:14px;padding-top:12px;border-top:1px dashed #e7ddc6"><p style="font-size:13px;font-weight:700">혹시 오늘, 마음을 무겁게 한 것이 있었나요?</p><p class="faint small" style="margin-top:2px">알려주시면 내일의 행동에 살며시 반영할게요.</p><div class="opts" style="margin-top:10px">'+BURDENS.map(function(x){return '<button class="opt" style="min-width:70px;padding:9px 6px;font-size:12px" data-burden="'+x.id+'">'+x.lb+'</button>';}).join('')+'</div></div>';
+  }
+  return '<section class="calm" style="background:#fbf7ee;border-color:#efe1c6;text-align:left"><p class="t" style="font-family:var(--serif);text-align:center">오늘, 좋은 일이 있었나요?</p>'+
     '<div class="opts" style="margin-top:12px"><button class="opt'+(v==='good'?' on':'')+'" data-close="good">있었어요</button><button class="opt'+(v==='ok'?' on':'')+'" data-close="ok">보통</button><button class="opt'+(v==='no'?' on':'')+'" data-close="no">아쉬웠어요</button></div>'+
-    noteLine+
-    '<p class="faint small" style="margin-top:10px">이 기록이 쌓이면, 어떤 행동이 좋은 일로 이어지는지 보여드려요.</p></section>';
+    noteLine+careBlock+
+    '<p class="faint small" style="margin-top:10px;text-align:center">이 기록이 쌓이면, 어떤 행동이 좋은 일로 이어지는지 보여드려요.</p></section>';
 }
 
 /* ── 미션 ── */
@@ -184,10 +190,13 @@ export function viewReport(S){
 
 /* ── 나 ── */
 export function viewMe(S){
-  var s=DB.settings();var p=DB.profile();var oh=E.ohaengLabel(p.ohaeng);
+  var s=DB.settings();var p=DB.profile();var oh=E.ohaengLabel(p.ohaeng);var sym=E.personalSymbol();
   var wtags=(s.wishes||[]).map(function(id){return '<span class="tg">'+wishLb(id)+'</span>';}).join('')||'—';
   return topbar('',S.prevTab||'home')+
-    '<div class="me-id"><span style="width:54px;height:54px;border-radius:16px;background:#fbf6ee;border:1px solid var(--line);display:grid;place-items:center">'+glyph("clover","#C7A14A",4.5)+'</span><div><p class="me-name">'+esc(p.nickname||"나")+'</p><p class="faint small">Lv.'+E.level()+(oh?' · 오행 '+oh:'')+'</p></div></div>'+
+    '<div class="me-id"><span style="width:54px;height:54px;border-radius:16px;background:#fbf6ee;border:1px solid var(--line);display:grid;place-items:center;padding:8px;color:#C7A14A">'+glyph(sym.id,"#C7A14A",3.6)+'</span><div><p class="me-name">'+esc(p.nickname||"나")+'</p><p class="faint small">Lv.'+E.level()+(oh?' · 오행 '+oh:'')+' · '+sym.nm+'</p></div></div>'+
+    '<div class="card" style="padding:16px 18px;background:linear-gradient(160deg,#fdfaf3,#f7f1e4);border-color:#e7dcc2"><div style="display:flex;gap:14px;align-items:center"><span style="width:60px;height:60px;flex:none;color:#9c8348">'+glyph(sym.id,"#9c8348",3)+'</span><div><p class="eyebrow" style="letter-spacing:.2em">나의 상징</p><p style="font-family:var(--disp);font-size:17px;margin-top:2px">'+sym.nm+' <span class="faint small">'+sym.en+(sym.oh?' · '+sym.oh+'('+({"목":"木","화":"火","토":"土","금":"金","수":"水"}[sym.oh])+')':'')+'</span></p></div></div>'+
+    '<p class="serif" style="font-size:13.5px;line-height:1.8;color:#5a4a2a;margin-top:12px">'+esc(sym.desc)+'</p>'+
+    '<div style="display:flex;gap:6px;margin-top:10px">'+sym.tags.map(function(t){return '<span class="tg">'+t+'</span>';}).join('')+'</div></div>'+
     '<button class="tip" style="width:100%;text-align:left;border:1px solid #e2d3ef;background:#f8f4fc;border-radius:16px;padding:14px 16px" data-plus><div class="k" style="font-size:11px;font-weight:800;color:#7c5cc4">ENSEN PLUS · 준비 중</div><div class="v" style="font-family:var(--serif);font-size:14px;margin-top:5px;line-height:1.6">더 깊은 나의 리포트, 먼저 만나보세요'+(DB.settings().plusInterest?' — 관심 등록 완료 ✓':'')+'</div></button>'+
     '<div class="device"><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M11 18h2"/></svg>이 기기에만 저장 중</div>'+
     '<p class="why-note">지금은 계정 로그인·기기 간 동기화가 없어요. 기록은 이 브라우저에만 저장돼요. 초기화하면 복구할 수 없어요.</p>'+
@@ -200,6 +209,6 @@ export function viewMe(S){
     '</div>'+
     '<button class="ghost" data-edit>소망·개인화 정보 바꾸기</button>'+
     '<button class="link center" data-policy style="align-self:center">개인정보 처리방침</button>'+
-    '<div style="display:flex;gap:18px;justify-content:center;margin-top:2px"><button class="link" data-admin>관리자 접근</button><button class="link danger" data-reset>데이터 초기화</button></div>'+
+    '<div style="display:flex;justify-content:center;margin-top:2px"><button class="link danger" data-reset>데이터 초기화</button></div>'+
     '<p class="faint small center">ENSEN LAB v1.0.0 · Your Story. Your Luck.</p>';
 }

@@ -46,7 +46,25 @@ export var G={
   mandala:function(){return '<circle cx="50" cy="50" r="34"/><circle cx="50" cy="50" r="20"/><circle cx="50" cy="50" r="7"/>'+_rot("M50 30 C56 37 56 43 50 50 C44 43 44 37 50 30 Z",8);},
   wanggwan:function(){return '<path d="M20 70 L27 32 L39 48 L50 26 L61 48 L73 32 L80 70 Z"/><path d="M20 70 H80"/><circle cx="50" cy="40" r="3.6" fill="currentColor" stroke="none"/>';}
 };
+/* 심벌 확장 (개인 고유 심벌용 · 간명한 라인) */
+G.taegeuk=function(){return '<circle cx="50" cy="50" r="33"/><path d="M50 17a16.5 16.5 0 0 1 0 33 16.5 16.5 0 0 0 0 33"/>';};
+G.samtaeguk=function(){return '<circle cx="50" cy="50" r="33"/>'+_rot("M50 17 A33 33 0 0 1 78.6 66.5 A16.5 16.5 0 0 0 50 50 A16.5 16.5 0 0 1 50 17 Z",3);};
+G.daenamu=function(){return '<path d="M40 84 V20"/><path d="M60 84 V28"/><path d="M33 64 H47"/><path d="M33 44 H47"/><path d="M53 62 H67"/><path d="M53 44 H67"/><path d="M40 26 C31 22 25 28 27 36"/>';};
+G.yeonkkot=function(){return _rot("M50 20 C60 36 60 52 50 64 C40 52 40 36 50 20 Z",5)+'<path d="M26 68 Q50 82 74 68"/>';};
 export function glyph(id,color,sw){var f=G[id]||G.clover;return '<svg viewBox="0 0 100 100" fill="none" stroke="'+(color||"currentColor")+'" stroke-width="'+(sw||4)+'" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+f()+'</svg>';}
+/* 미션 아이콘용 — ENI 간소화 이모티콘 (라인 스타일, 표정 변형) */
+export function catIcon(color,mood){
+  var eyes = mood==='wink' ? '<path d="M36 52 q5 -5 10 0"/><circle cx="62" cy="51" r="3" fill="'+color+'" stroke="none"/>'
+    : mood==='joy' ? '<path d="M33 52 q6 -7 12 0"/><path d="M55 52 q6 -7 12 0"/>'
+    : mood==='calm' ? '<path d="M34 52 h10"/><path d="M56 52 h10"/>'
+    : '<circle cx="38" cy="51" r="3" fill="'+color+'" stroke="none"/><circle cx="62" cy="51" r="3" fill="'+color+'" stroke="none"/>';
+  var mouth = mood==='joy' ? '<path d="M42 63 q8 8 16 0"/>' : '<path d="M44 62 q6 5 12 0"/>';
+  return '<svg viewBox="0 0 100 100" fill="none" stroke="'+color+'" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+
+    '<path d="M28 38 L24 18 L42 30"/><path d="M72 38 L76 18 L58 30"/>'+
+    '<circle cx="50" cy="55" r="28"/>'+eyes+mouth+
+    ensStar(50,10,7,color)+'</svg>';
+}
+export function catMood(str){var h=0;for(var i=0;i<str.length;i++)h=(h*31+str.charCodeAt(i))>>>0;return ['smile','joy','wink','calm'][h%4];}
 export function colorForGlyph(g){var m={clover:"#2FB39B",byeol:"#FFA23E",nabi:"#8B7BE8",saessak:"#3FA9E8",nachimban:"#C7A14A",dal:"#F26D9E",taeyang:"#FF7A59",maehwa:"#F472B6",yeopjeon:"#C7A14A",muhandae:"#8B7BE8",mandala:"#2FB39B",wanggwan:"#E9B949"};return m[g]||"#C7A14A";}
 // 소망 라인 아이콘
 var WI={

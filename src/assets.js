@@ -10,7 +10,7 @@ export function cat(size,expr,coat){
     :'<path d="M56 71 q4 4 8 0" stroke="'+line+'" stroke-width="2.6" fill="none" stroke-linecap="round"/><path d="M60 68 v4" stroke="'+line+'" stroke-width="2.4" stroke-linecap="round"/>';
   var paws=expr==='cheer'?'<ellipse cx="30" cy="86" rx="8" ry="9" fill="'+coat+'" stroke="'+line+'" stroke-width="2.4"/><ellipse cx="90" cy="86" rx="8" ry="9" fill="'+coat+'" stroke="'+line+'" stroke-width="2.4"/>'
     :'<ellipse cx="47" cy="116" rx="9" ry="7" fill="'+coat+'" stroke="'+line+'" stroke-width="2.4"/><ellipse cx="73" cy="116" rx="9" ry="7" fill="'+coat+'" stroke="'+line+'" stroke-width="2.4"/>';
-  return '<svg width="'+size+'" height="'+(size*1.16)+'" viewBox="0 0 120 132" fill="none" aria-hidden="true">'+
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="'+size+'" height="'+(size*1.16)+'" viewBox="0 0 120 132" fill="none" aria-hidden="true">'+
     '<path d="M92 112 q22 -4 16 -26 q-4 -14 -16 -12" fill="none" stroke="'+line+'" stroke-width="6" stroke-linecap="round"/>'+
     '<path d="M60 74 C36 74 30 96 32 112 C33 122 44 124 60 124 C76 124 87 122 88 112 C90 96 84 74 60 74 Z" fill="'+coat+'" stroke="'+line+'" stroke-width="2.6"/>'+paws+
     '<path d="M34 40 L28 14 L52 30 Z" fill="'+coat+'" stroke="'+line+'" stroke-width="2.6" stroke-linejoin="round"/>'+

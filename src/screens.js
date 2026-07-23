@@ -2,7 +2,7 @@
 import { logo, cat, glyph, wishIcon, colorForGlyph } from './assets.js';
 import { WISHES, wishLb, REWARD } from './data.js';
 import { DB } from './store.js';
-import { esc, today, hex2bg } from './util.js';
+import { esc, today, hex2bg, defaultBirth } from './util.js';
 import * as E from './engine.js';
 
 export function topbar(right,back){
@@ -13,7 +13,7 @@ export function topbar(right,back){
 export function tabbar(tab){
   var T=[["home","홈",'<path d="M4 12l8-8 8 8"/><path d="M6 10v10h12V10"/>'],
     ["missions","미션",'<path d="M5 6h14M5 12h14M5 18h9"/><circle cx="19" cy="18" r="1.6"/>'],
-    ["collection","컬렉션",'<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'],
+    ["card","카드",'<rect x="4" y="5" width="16" height="14" rx="2.5"/><path d="M8 10h8M8 14h5"/>'],
     ["report","리포트",'<path d="M6 20V10M12 20V5M18 20v-7"/>'],
     ["me","나",'<circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>']];
   return '<nav class="tabs" aria-label="주요 메뉴">'+T.map(function(t){return '<button class="tab'+(tab===t[0]?' on':'')+'" data-nav="'+t[0]+'" aria-label="'+t[1]+'"'+(tab===t[0]?' aria-current="page"':'')+'><svg viewBox="0 0 24 24">'+t[2]+'</svg>'+t[1]+'</button>';}).join('')+'</nav>';
@@ -39,7 +39,7 @@ export function viewOnboarding(){
     return topbar('<span class="faint small">1 / 3</span>',null)+
       '<div><h1 class="disp">나를 알려주세요</h1><p class="faint small">모두 선택이에요. 알려줄수록 분석과 미션이 정확해져요.</p></div>'+
       '<div class="field"><span>닉네임 <span class="faint">(불릴 이름)</span></span><input id="p-nick" type="text" placeholder="예: 구름" value="'+esc(p.nickname||'')+'"></div>'+
-      '<div class="field"><span>생년월일 <span class="faint">(오행 자동 분석)</span></span><input id="p-birth" type="date" max="'+today()+'" value="'+(p.birth||'')+'"></div>'+
+      '<div class="field"><span>생년월일 <span class="faint">(오행 자동 분석)</span></span><input id="p-birth" type="date" max="'+today()+'" value="'+(p.birth||defaultBirth())+'"></div>'+
       '<div class="field"><span>직업 / 하는 일</span><input id="p-job" type="text" placeholder="예: 디자이너, 학생" value="'+esc(p.job||'')+'"></div>'+
       '<div class="field"><span>사는 곳 / 지역</span><input id="p-place" type="text" placeholder="예: 서울, 바닷가 도시" value="'+esc(p.place||'')+'"></div>'+
       '<div class="field"><span>성향 (MBTI)</span><div class="mbti">'+pairs.map(function(pr){var cur=mb[pr[2]];return '<button data-mbti="'+pr[2]+'" data-val="'+pr[0]+'" class="'+(cur===pr[0]?'on':'')+'">'+pr[0]+'</button><button data-mbti="'+pr[2]+'" data-val="'+pr[1]+'" class="'+(cur===pr[1]?'on':'')+'">'+pr[1]+'</button>';}).join('')+'</div></div>'+
@@ -83,21 +83,31 @@ function missionItem(m,i,date,compact){
 
 /* ── 홈 ── */
 export function viewHome(S){
-  var date=today();var entry=S.todayEntry;
+  var date=today();var entry=S.todayEntry;var p=DB.profile();
   var doneN=entry?entry.items.filter(function(m,i){return E.isDone(date,i);}).length:0;
   var total=entry?entry.items.length:3;var allDone=entry&&doneN===total&&total>0;
   var expr=allDone?'cheer':(doneN>0?'happy':'base');
   var caption=entry&&entry.state?entry.state:(doneN>0?'좋아요, 잘하고 있어요!':'오늘도 한 걸음 함께해요');
-  var list;
-  if(!entry)list='<div class="miss">'+[0,1,2].map(function(){return '<div class="skel"></div>';}).join('')+'</div><p class="srcnote">맞춤 미션을 준비하고 있어요…</p>';
-  else list='<div class="miss">'+entry.items.map(function(m,i){return missionItem(m,i,date,true);}).join('')+'</div>'+
-    (entry.source==='ai'?'<p class="srcnote">✦ AI가 나에게 맞춰 제안했어요</p>':'<p class="srcnote">지금은 기기 내 개인화 추천으로 보여드려요</p>')+
-    '<button class="ghost" data-nav="missions">미션 자세히 보기 · 바꾸기</button>';
-  var close=viewCloseInline(date);
+  // 개인화 미입력 배너 (생년월일 없으면)
+  var banner=(!p.birth)?'<button class="calm" style="width:100%;background:#fef6e6;border-color:#f0dcb4;text-align:left;display:flex;align-items:center;gap:10px" data-personalize><span style="flex:1"><span class="t" style="font-size:14px;font-family:var(--disp)">생년월일·성향을 입력해 보세요</span><span class="s" style="display:block">오행 분석과 더 정확한 맞춤 미션을 받을 수 있어요.</span></span><span class="faint" style="font-size:20px">›</span></button>':'';
+  // 오늘 미션 요약 카드
+  var summary;
+  if(!entry)summary='<div class="skel" style="height:96px"></div>';
+  else {
+    var nextIdx=-1;for(var k=0;k<entry.items.length;k++){if(!E.isDone(date,k)){nextIdx=k;break;}}
+    var lead=entry.items[nextIdx>=0?nextIdx:0];
+    var nextTxt=allDone?'모두 마쳤어요! 잘했어요':lead.sentence;
+    summary='<button class="card" style="width:100%;text-align:left;padding:16px 18px;display:flex;align-items:center;gap:14px" data-nav="missions">'+
+      '<span class="ic" style="width:44px;height:44px;flex:none;border-radius:12px;display:grid;place-items:center;background:'+hex2bg(lead.color)+';color:'+lead.color+'">'+glyph(lead.glyph,lead.color,4.5)+'</span>'+
+      '<span style="flex:1"><span class="t" style="font-family:var(--disp);font-size:15px;display:block">오늘의 미션 '+doneN+' / '+total+'</span><span class="faint small">'+esc(nextTxt)+'</span></span>'+
+      '<span class="faint" style="font-size:20px">›</span></button>'+
+      (entry.source==='ai'?'<p class="srcnote">✦ AI가 나에게 맞춰 제안했어요</p>':'<p class="srcnote">지금은 기기 내 개인화 추천으로 보여드려요</p>');
+  }
+  var cta=entry?'<button class="cta" data-nav="missions">'+(allDone?'오늘의 미션 다시 보기':'오늘의 미션 하러 가기')+'</button>':'';
   return topbar('<span class="pill">✦ 연속 '+E.streak()+'일</span>')+fortuneCard()+
-    '<div class="todaycat">'+cat(64,expr)+'<p>'+esc(caption)+'</p></div>'+
-    '<div class="sect"><span class="t">오늘의 미션</span><span class="p">'+doneN+' / '+total+'</span></div>'+list+
-    (allDone?'<section class="calm"><p class="t">오늘의 작은 약속을 지켰어요</p><p class="s">리포트에서 나만의 패턴을 볼 수 있어요.</p></section>':close);
+    '<div class="todaycat">'+cat(64,expr)+'<p>'+esc(caption)+'</p></div>'+banner+
+    '<div class="sect"><span class="t">오늘</span></div>'+summary+cta+
+    (allDone?'<section class="calm"><p class="t">오늘의 작은 약속을 지켰어요</p><p class="s">리포트에서 나만의 패턴을 볼 수 있어요.</p></section>':viewCloseInline(date));
 }
 function viewCloseInline(date){
   var day=DB.settings();var luck=(DB.reflections()['__close_'+date]);
@@ -116,13 +126,23 @@ export function viewMissions(S){
   return head+'<div class="sect"><span class="t">전체 '+entry.items.length+'개</span><span class="p">'+doneN+' 완료</span></div>'+list+note+foot;
 }
 
-/* ── 컬렉션 ── */
-export function viewCollection(S){
-  var earned=E.completedCountAll();var unlocked=E.symbolsUnlocked();
-  var cards=REWARD.map(function(id,i){var on=i<unlocked;return '<div class="gc'+(on?'':' lk')+'">'+glyph(id,on?colorForGlyph(id):'#b7ae9d',4)+'<div class="nm">'+id+(on?'':' 🔒')+'</div><div class="mn">'+(on?'획득':'잠김')+'</div></div>';}).join('');
-  return topbar('<span class="pill">'+unlocked+' / '+REWARD.length+'</span>',S.prevTab||'home')+
-    '<div><h1 class="disp">컬렉션</h1><p class="faint small serif">행동을 쌓을수록 나만의 상징이 하나씩 켜져요.</p></div>'+
-    '<div class="mason">'+cards+'</div>';
+/* ── 카드 (나만의 행운 카드 · 저장/공유) ── */
+export function viewCard(S){
+  var f=E.fortune();var p=DB.profile();
+  var card='<section class="fortune" style="padding:26px 42px">'+
+    (f.oh?'<span class="f-han l" aria-hidden="true">'+f.han+'</span><span class="f-han r" aria-hidden="true">'+f.han+'</span>':'')+
+    '<p class="f-eye">❖ 나의 행운 문구 ❖</p>'+
+    '<div style="display:flex;justify-content:center;margin:4px 0 0">'+cat(70,'happy')+'</div>'+
+    '<p class="f-phrase">'+esc(f.phrase)+'</p>'+
+    (f.oh?'<p class="f-sub">— 오행 '+f.oh+'('+f.han+') · '+f.kw+' —</p>':'')+
+    '<p class="f-sub" style="margin-top:8px;color:#8a7550">'+(p.nickname?esc(p.nickname)+' · ':'')+today()+'</p>'+
+    '<p class="f-brand">ENSEN LAB</p></section>';
+  return topbar('<span class="pill">나의 카드</span>',S.prevTab||'home')+
+    '<div><h1 class="disp">오늘의 카드</h1><p class="faint small serif">매일 나의 오행에 맞춘 행운 문구 카드가 생겨요.<br>이미지로 저장하거나 SNS에 공유해 보세요.</p></div>'+
+    card+
+    '<button class="cta gold" data-card-share>공유하기</button>'+
+    '<button class="ghost" data-card-save>이미지로 저장</button>'+
+    '<p class="faint small center">저장·공유하면 위 카드가 이미지로 만들어져요.</p>';
 }
 
 /* ── 리포트 ── */

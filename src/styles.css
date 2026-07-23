@@ -147,6 +147,11 @@ h1.disp{font-family:var(--disp);font-weight:400;font-size:25px;line-height:1.45}
 .adm-metrics{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .adm-metrics .cell{border-radius:12px;border:1px solid var(--line);background:var(--raised);padding:12px 8px;text-align:center}
 .adm-metrics b{display:block;font-family:var(--disp);font-size:20px}.adm-metrics small{font-size:10px;color:var(--faint);font-weight:700}
+/* 분석 연출 */
+.analyzing{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center}
+.analyzing .spin{animation:breathe 2.4s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.ana-msg{font-family:var(--serif);font-size:16.5px;color:#5a4a2a;transition:opacity .18s ease;min-height:1.7em}
 .toast{position:fixed;left:50%;bottom:calc(var(--tab) + 26px);transform:translateX(-50%) translateY(20px);background:var(--char);color:#fff;font-size:13px;font-weight:600;padding:11px 18px;border-radius:999px;opacity:0;transition:var(--t);z-index:60;pointer-events:none;max-width:88%;text-align:center}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .mono{font-variant-numeric:tabular-nums}

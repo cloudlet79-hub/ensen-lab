@@ -21,6 +21,16 @@ export function cat(size,expr,coat){
     '<path d="M24 64 H12 M25 71 H14" stroke="'+line+'" stroke-width="2" stroke-linecap="round" opacity=".7"/>'+
     '<path d="M96 64 H108 M95 71 H106" stroke="'+line+'" stroke-width="2" stroke-linecap="round" opacity=".7"/>'+ensStar(60,12,9,'#C7A14A')+'</svg>';
 }
+/* 분석 로딩 로고 — 원본 v6 loadSVG 계승: 사선+외부별이 원 둘레를 회전 */
+export function logoSpin(s){
+  s=s||64;var g="#C7A14A";
+  return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 100 100" fill="none" aria-hidden="true">'+
+    '<circle cx="45" cy="54" r="32" stroke="'+g+'" stroke-width="4.5"/>'+
+    ensStar(45,54,8,g)+
+    '<g><line x1="50" y1="22" x2="79" y2="51" stroke="'+g+'" stroke-width="4.5" stroke-linecap="round"/>'+
+    ensStar(86,23,5.5,g)+
+    '<animateTransform attributeName="transform" attributeType="XML" type="rotate" from="0 45 54" to="360 45 54" dur="2.4s" repeatCount="indefinite"/></g></svg>';
+}
 function _rot(d,n){var s='';for(var i=0;i<n;i++)s+='<path d="'+d+'" transform="rotate('+(360/n*i)+' 50 50)"/>';return s;}
 export var G={
   clover:function(){return _rot("M50 50 C50 33 35 28 31 39 C27 48 38 55 50 50 Z",4)+'<path d="M50 54 C53 68 52 78 45 86"/>';},

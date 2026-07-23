@@ -1,5 +1,5 @@
 // 엔진 — 오행 분석 · 행운 문구 · 미션 생성(AI+로컬) · 완료/회고 · 지표
-import { DB, FN_URL, SUPA_ANON } from './store.js';
+import { DB, FN_URL, SUPA_ANON, cachedRuleset } from './store.js';
 import { POOL, OHAENG, FORTUNE_GEN, OH_ADVICE, MBTI_NOTE, REWARD, wishLb } from './data.js';
 import { colorForGlyph } from './assets.js';
 import { today, dAgo, hash, shuffleSeeded } from './util.js';
@@ -22,22 +22,35 @@ export function analysis(){
 }
 function esc0(s){return String(s||'');}
 
+/* 룰셋(CMS): 원격 판본이 캐시돼 있으면 그것을, 없으면 번들 데이터 사용 */
+export function activePool(){
+  var rs=cachedRuleset();
+  if(rs&&rs.content&&Array.isArray(rs.content.pool)&&rs.content.pool.length)return rs.content.pool;
+  return POOL;
+}
+function activePhrases(oh){
+  var rs=cachedRuleset();
+  if(rs&&rs.content&&rs.content.phrases&&Array.isArray(rs.content.phrases[oh])&&rs.content.phrases[oh].length)return rs.content.phrases[oh];
+  return OHAENG[oh]?OHAENG[oh].phrases:null;
+}
+export function rulesetVersion(){var rs=cachedRuleset();return rs?rs.version:0;}
+
 export function fortune(){
   var p=DB.profile();var oh=p.ohaeng;var seed=hash(seedId()+today());
-  if(oh&&OHAENG[oh]){var ph=OHAENG[oh].phrases;return {phrase:ph[seed%ph.length],oh:oh,han:OHAENG[oh].han,kw:OHAENG[oh].kw};}
+  if(oh&&OHAENG[oh]){var ph=activePhrases(oh)||OHAENG[oh].phrases;return {phrase:ph[seed%ph.length],oh:oh,han:OHAENG[oh].han,kw:OHAENG[oh].kw};}
   return {phrase:FORTUNE_GEN[seed%FORTUNE_GEN.length],oh:null};
 }
 
-export function eligiblePool(){var s=DB.settings();var wishes=(s.wishes&&s.wishes.length)?s.wishes:["happy"];return POOL.filter(function(a){return wishes.indexOf(a.w)>=0;});}
+export function eligiblePool(){var s=DB.settings();var wishes=(s.wishes&&s.wishes.length)?s.wishes:["happy"];return activePool().filter(function(a){return wishes.indexOf(a.w)>=0;});}
 export function localMissions(count){
   var s=DB.settings();var wishes=(s.wishes&&s.wishes.length)?s.wishes:["happy"];
   var seed=hash(seedId()+today()+wishes.join(',')+(DB.profile().ohaeng||''));
-  var pool=eligiblePool();if(!pool.length)pool=POOL.slice();
+  var pool=eligiblePool();if(!pool.length)pool=activePool().slice();
   return shuffleSeeded(pool,seed).slice(0,count||3).map(function(a){return {sentence:a.s,minutes:a.min,tag:wishLb(a.w),reason:a.r,glyph:a.g,color:a.c,source:"local"};});
 }
 export function aiMissions(count){
   var s=DB.settings();var p=DB.profile();
-  var body={date:today(),count:count||3,profile:{wishes:(s.wishes||[]).map(wishLb),ohaeng:p.ohaeng||null,birth:p.birth||null,job:p.job||null,place:p.place||null,mbti:(p.mbti&&p.mbti.indexOf('_')<0?p.mbti:null)}};
+  var body={date:today(),seedId:seedId(),count:count||3,profile:{wishes:(s.wishes||[]).map(wishLb),ohaeng:p.ohaeng||null,birth:p.birth||null,job:p.job||null,place:p.place||null,mbti:(p.mbti&&p.mbti.indexOf('_')<0?p.mbti:null)}};
   return fetch(FN_URL,{method:"POST",headers:{"apikey":SUPA_ANON,"Authorization":"Bearer "+SUPA_ANON,"Content-Type":"application/json"},body:JSON.stringify(body)})
     .then(function(r){return r.json();})
     .then(function(d){
@@ -56,8 +69,8 @@ export function ensureToday(cb){
 export function swapMission(i){
   var date=today();var m=DB.missions();var entry=m[date];if(!entry)return null;
   var s=DB.settings();var wishes=s.wishes||[];var used=entry.items.map(function(x){return x.sentence;});
-  var pool=POOL.filter(function(a){return wishes.indexOf(a.w)>=0&&used.indexOf(a.s)<0;});
-  if(!pool.length)pool=POOL.filter(function(a){return used.indexOf(a.s)<0;});
+  var AP=activePool();var pool=AP.filter(function(a){return wishes.indexOf(a.w)>=0&&used.indexOf(a.s)<0;});
+  if(!pool.length)pool=AP.filter(function(a){return used.indexOf(a.s)<0;});
   if(!pool.length)return false;
   entry.swaps=(entry.swaps||0)+1;var pick=shuffleSeeded(pool,hash(seedId()+date+'w'+i+'#'+entry.swaps))[0];
   entry.items[i]={sentence:pick.s,minutes:pick.min,tag:wishLb(pick.w),reason:pick.r,glyph:pick.g,color:pick.c,source:entry.items[i].source};

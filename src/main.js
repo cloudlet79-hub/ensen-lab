@@ -1,7 +1,7 @@
 // 메인 — 상태 · 라우터 · 상호작용 · 시트
-import { logo, cat, wishIcon } from './assets.js';
+import { logo, logoSpin, cat, wishIcon } from './assets.js';
 import { WISHES, wishLb } from './data.js';
-import { DB, ADMIN_CODE } from './store.js';
+import { DB, ADMIN_CODE, track, fetchRuleset, fetchAdminSummary } from './store.js';
 import { today, esc, toast, downloadDataUrl, defaultBirth } from './util.js';
 import * as E from './engine.js';
 import { cardImage } from './cards.js';
@@ -31,9 +31,9 @@ function bindOnboarding(){
   var ag=document.getElementById('p-agree');if(ag)ag.onchange=function(){saveStep1();DB.patchSettings({agree:ag.checked});render();};
   document.querySelectorAll('[data-step]').forEach(function(b){b.onclick=function(){var to=b.getAttribute('data-step');var s=DB.settings();
     if(to==="1"){DB.patchSettings({_step:1});}
-    else if(to==="2"){if(!s.agree){toast("기기 저장에 동의해 주세요");return;}saveStep1();DB.patchSettings({_step:2});}
+    else if(to==="2"){if(!s.agree){toast("기기 저장에 동의해 주세요");return;}saveStep1();showAnalyzing();return;}
     else if(to==="3"){DB.patchSettings({_step:3});}
-    else if(to==="done"){if(!(s.wishes&&s.wishes.length)){toast("소망을 하나 이상 골라주세요");return;}E.seedId();DB.patchSettings({onboarded:true,_step:undefined});S.todayEntry=null;S.tab="home";render();return;}
+    else if(to==="done"){if(!(s.wishes&&s.wishes.length)){toast("소망을 하나 이상 골라주세요");return;}E.seedId();DB.patchSettings({onboarded:true,_step:undefined});track('onboard_done',{wishes:(s.wishes||[]).length});S.todayEntry=null;S.tab="home";render();return;}
     render();};});
   document.querySelectorAll('[data-back-to]').forEach(function(b){b.onclick=function(){if(document.getElementById('p-birth'))saveStep1();DB.patchSettings({_step:parseInt(b.getAttribute('data-back-to'),10)});render();};});
   var sk=document.querySelector('[data-skip]');if(sk)sk.onclick=function(){DB.patchSettings({wishes:["happy","luck"],agree:true,onboarded:true,_step:undefined});E.seedId();S.todayEntry=null;S.tab="home";render();};
@@ -43,9 +43,9 @@ function bindOnboarding(){
 function bind(){
   document.querySelectorAll('[data-nav]').forEach(function(b){b.onclick=function(){nav(b.getAttribute('data-nav'));};});
   document.querySelectorAll('[data-complete]').forEach(function(b){b.onclick=function(){openSheet({type:'complete',i:parseInt(b.getAttribute('data-complete'),10),date:today(),felt:null,again:null});};});
-  document.querySelectorAll('[data-swap]').forEach(function(b){b.onclick=function(){var e=E.swapMission(parseInt(b.getAttribute('data-swap'),10));if(e===false){toast("오늘은 더 바꿀 미션이 없어요");return;}if(e){S.todayEntry=e;render();toast("다른 미션으로 바꿨어요");}};});
+  document.querySelectorAll('[data-swap]').forEach(function(b){b.onclick=function(){var e=E.swapMission(parseInt(b.getAttribute('data-swap'),10));if(e===false){toast("오늘은 더 바꿀 미션이 없어요");return;}if(e){track('mission_swap');S.todayEntry=e;render();toast("다른 미션으로 바꿨어요");}};});
   document.querySelectorAll('[data-undo]').forEach(function(b){b.onclick=function(){E.unmarkDone(today(),parseInt(b.getAttribute('data-undo'),10));render();toast("완료를 취소했어요");};});
-  document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=function(){var r=DB.reflections();r['__close_'+today()]=b.getAttribute('data-close');DB.setReflections(r);render();toast("하루를 닫았어요");};});
+  document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=function(){var r=DB.reflections();r['__close_'+today()]=b.getAttribute('data-close');DB.setReflections(r);track('day_close',{v:b.getAttribute('data-close')});render();toast("하루를 닫았어요");};});
   var ed=document.querySelector('[data-edit]');if(ed)ed.onclick=function(){openSheet({type:'edit'});};
   var po=document.querySelector('[data-policy]');if(po)po.onclick=function(){openSheet({type:'policy'});};
   var rs=document.querySelector('[data-reset]');if(rs)rs.onclick=function(){openSheet({type:'reset'});};
@@ -56,13 +56,24 @@ function bind(){
   var bl=document.getElementById('brandLogo');if(bl)bl.onclick=function(){_logoTaps++;clearTimeout(_logoTimer);_logoTimer=setTimeout(function(){_logoTaps=0;},1600);if(_logoTaps>=5){_logoTaps=0;openAdminGate();}};
 }
 function openAdminGate(){openSheet({type:'adminGate',code:''});}
-async function saveCard(){toast('카드 이미지를 만들고 있어요…');try{var u=await cardImage();downloadDataUrl(u,'ensen-card.png');toast('카드를 이미지로 저장했어요');}catch(e){toast('이미지 저장에 실패했어요');}}
-async function shareCard(){try{var u=await cardImage();var blob=await (await fetch(u)).blob();var file=new File([blob],'ensen-card.png',{type:'image/png'});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],text:'나의 행운 문구 · ENSEN LAB'});}else{downloadDataUrl(u,'ensen-card.png');toast('공유가 지원되지 않아 이미지로 저장했어요');}}catch(e){if(e&&e.name==='AbortError')return;toast('공유를 완료하지 못했어요');}}
+/* ── 오행 분석 연출: 회전 로고 + 순환 문구 후 결과 공개 ── */
+function showAnalyzing(){
+  var msgs=["생년월일의 결을 읽고 있어요","오행의 흐름을 살피고 있어요","오늘의 기운을 맞추고 있어요"];
+  el().innerHTML='<div class="app"><div class="scr"><div class="analyzing">'+
+    '<div class="spin">'+logoSpin(72)+'</div>'+
+    '<p class="ana-msg" id="anaMsg">'+msgs[0]+'</p>'+
+    '<p class="faint small">잠시만 기다려 주세요</p>'+
+    '</div></div></div>';
+  var i=0;var iv=setInterval(function(){i=(i+1)%msgs.length;var m=document.getElementById('anaMsg');if(m){m.style.opacity='0';setTimeout(function(){if(m){m.textContent=msgs[i];m.style.opacity='1';}},180);}},900);
+  setTimeout(function(){clearInterval(iv);DB.patchSettings({_step:2});render();},2600);
+}
+async function saveCard(){toast('카드 이미지를 만들고 있어요…');try{var u=await cardImage();downloadDataUrl(u,'ensen-card.png');track('card_save');toast('카드를 이미지로 저장했어요');}catch(e){toast('이미지 저장에 실패했어요');}}
+async function shareCard(){try{var u=await cardImage();var blob=await (await fetch(u)).blob();var file=new File([blob],'ensen-card.png',{type:'image/png'});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],text:'나의 행운 문구 · ENSEN LAB'});track('card_share');}else{downloadDataUrl(u,'ensen-card.png');toast('공유가 지원되지 않아 이미지로 저장했어요');}}catch(e){if(e&&e.name==='AbortError')return;toast('공유를 완료하지 못했어요');}}
 
 /* ── 시트 ── */
 function openSheet(cfg){S.sheet=cfg;renderSheet();}
 function closeSheet(){S.sheet=null;var w=document.getElementById('sheetWrap');if(w)w.remove();}
-function finishComplete(){var st=S.sheet;var date=st.date;closeSheet();
+function finishComplete(){var st=S.sheet;var date=st.date;track('mission_complete');closeSheet();
   var entry=S.todayEntry;var all=entry&&entry.items.every(function(m,i){return E.isDone(date,i);});
   render();
   if(all){var s=DB.settings();if(s.lastAllDone!==date){DB.patchSettings({lastAllDone:date});openSheet({type:'allDone'});}}
@@ -112,6 +123,8 @@ function renderSheet(){
         '<div class="row"><span class="k">오행</span><span class="v">'+esc(E.ohaengLabel(DB.profile().ohaeng)||"—")+'</span></div>'+
         '<div class="row"><span class="k">소망</span><span class="v">'+((DB.settings().wishes||[]).map(function(id){return wishLb(id);}).join('·')||"—")+'</span></div>'+
       '</div>'+
+      '<div class="sect" style="margin-top:14px"><span class="t" style="font-family:var(--disp);font-size:14px">서버 지표 (전체 사용자)</span></div>'+
+      '<div id="admServer" class="why-note">서버 지표를 불러오는 중…</div>'+
       '<button class="cta gold" style="margin-top:14px" data-adm-export>데이터 내보내기 (JSON)</button><button class="ghost" style="margin-top:10px" data-close>닫기</button>'+
       '<p class="why-note" style="margin-top:12px">이 기기의 로컬 데이터 요약입니다. 접근 코드는 src/store.js의 ADMIN_CODE에서 바꿀 수 있고, 실제 관리자 권한·전체 회원 지표는 서버 콘솔에서 관리합니다(프런트에 권한 로직 없음).</p>';
   }
@@ -132,8 +145,19 @@ function bindSheet(){
   document.querySelectorAll('[data-ewish]').forEach(function(b){b.onclick=function(){var s=DB.settings();var w=(s.wishes||[]).slice();var id=b.getAttribute('data-ewish');var i=w.indexOf(id);if(i>=0){if(w.length<=1){toast("소망은 하나 이상이어야 해요");return;}w.splice(i,1);}else w.push(id);DB.patchSettings({wishes:w});renderSheet();};});
   document.querySelectorAll('[data-embti]').forEach(function(b){b.onclick=function(){var idx=parseInt(b.getAttribute('data-embti'),10);var val=b.getAttribute('data-val');var mb=(DB.profile().mbti||"____").split('');mb[idx]=(mb[idx]===val?"_":val);DB.patchProfile({mbti:mb.join('')});renderSheet();};});
   var es=document.querySelector('[data-edit-save]');if(es)es.onclick=function(){var birth=document.getElementById('e-birth').value;DB.patchProfile({nickname:document.getElementById('e-nick').value.trim(),birth:birth,job:document.getElementById('e-job').value.trim(),place:document.getElementById('e-place').value.trim(),ohaeng:E.ohaengOf(birth)});var mm=DB.missions();delete mm[today()];DB.setMissions(mm);S.todayEntry=null;closeSheet();S.tab="home";render();toast("저장했어요. 오늘의 미션을 새로 준비할게요");};
-  var ae=document.querySelector('[data-adm-enter]');if(ae)ae.onclick=function(){var v=(document.getElementById('adm-code').value||'').trim();if(v===ADMIN_CODE){S.sheet=null;openSheet({type:'admin'});}else toast('접근 코드가 올바르지 않아요');};
+  var ae=document.querySelector('[data-adm-enter]');if(ae)ae.onclick=function(){var v=(document.getElementById('adm-code').value||'').trim();if(v===ADMIN_CODE){S.sheet=null;openSheet({type:'admin',code:v});}else toast('접근 코드가 올바르지 않아요');};
+  var srv=document.getElementById('admServer');
+  if(srv&&S.sheet&&S.sheet.type==='admin'){
+    fetchAdminSummary(S.sheet.code||ADMIN_CODE).then(function(d){
+      var box=document.getElementById('admServer');if(!box)return;
+      if(!d||d.ok!==true){box.textContent='서버 지표를 불러오지 못했어요 (오프라인 또는 코드 불일치).';return;}
+      var cells=[["전체 사용자",d.users_total],["7일 활성",d.active_7d],["7일 완료",d.completes_7d],["7일 하루닫기",d.closes_7d],["7일 카드",d.cards_7d],["AI 호출 7일",d.ai_calls_7d],["AI 실패 7일",d.ai_fail_7d],["AI 토큰 7일",d.ai_tokens_7d]];
+      box.outerHTML='<div class="adm-metrics" id="admServer">'+cells.map(function(x){return '<div class="cell"><b>'+(x[1]==null?0:x[1])+'</b><small>'+x[0]+'</small></div>';}).join('')+'</div><p class="why-note">룰셋 v'+(d.ruleset_v==null?'—':d.ruleset_v)+' 적용 중 · 코드 검증은 서버(admin_summary)가 수행</p>';
+    });
+  }
   var ax=document.querySelector('[data-adm-export]');if(ax)ax.onclick=function(){try{var data={profile:DB.profile(),settings:DB.settings(),missions:DB.missions(),completions:DB.completions(),reflections:DB.reflections(),exportedAt:today()};var url='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(data,null,2));downloadDataUrl(url,'ensen-data-'+today()+'.json');toast('데이터를 내보냈어요');}catch(e){toast('내보내기에 실패했어요');}};
 }
 
+fetchRuleset(function(){if(ready())render();});
+try{var st0=DB.settings();if(st0.onboarded&&st0.lastOpenTracked!==today()){DB.patchSettings({lastOpenTracked:today()});track('app_open');}}catch(e){}
 try{render();}catch(e){el().innerHTML='<div class="app"><div class="scr"><div class="empty">잠시 문제가 생겼어요. 새로고침해 주세요.</div></div></div>';}
